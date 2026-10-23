@@ -1,0 +1,2 @@
+-- Domain seed only. Auth users are created by scripts/seed-users.ts.
+-- This file is intentionally empty for Phase 1 because profiles require auth.users.
