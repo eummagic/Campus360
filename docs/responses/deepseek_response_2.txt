@@ -1,0 +1,1353 @@
+## 1. Inspection summary
+
+I cannot directly inspect a live repository or filesystem from this environment. The provided canonical documents are treated as the specification. The repository is empty, and no rubric mandating a different stack has been supplied, so the baseline stack from `campus360_design_v0.2.md` is used.
+
+**Key constraints carried into Phase 1:**
+- Synthetic data only.
+- No service-role key in browser or ordinary data client.
+- RLS enabled on every exposed table.
+- Controlled audit writes; application roles cannot update/delete audit rows.
+- One protected read path and one controlled mutation.
+- No other product modules, chat, payments, GPS, or AI tools.
+
+## 2. Exact Phase 1 plan
+
+**Scaffold**
+- Next.js 15 App Router, React 19, TypeScript strict, Tailwind CSS 3, pnpm.
+- Supabase CLI local project with migrations and seed structure.
+- Vitest + React Testing Library, Playwright, pgTAP for RLS.
+
+**Database**
+- `profiles`, `user_roles`, `audit_events`.
+- RLS: users can read/update only their own profile; users can read only their own roles; audit table has no direct client policies.
+- Controlled functions: `update_my_display_name(text)` and `record_audit_event(...)`, both `security definer`, granted to `authenticated`.
+- Unique constraints and timestamps.
+
+**Auth**
+- `@supabase/ssr` cookie-based session, middleware token refresh.
+- Server helper `requireUser()` and `getUserRoles()`.
+- Login page and callback handling.
+
+**Vertical slice**
+- `/profile` protected Server Component: reads own profile via user-scoped client.
+- Profile update Server Action: calls `update_my_display_name` RPC; success only after confirmed persistence.
+- Audit event written atomically by the RPC.
+
+**Tests**
+- Vitest unit tests for validation and auth helpers.
+- Playwright E2E for login/protected profile flow.
+- pgTAP SQL tests for RLS positive/negative cases and audit-table protection.
+- Clear marking of any DB/RLS tests that cannot be executed without Docker/Supabase.
+
+**Out of scope**
+All other modules, AI, payments, GPS, real data, KTU scraping, temporary-password display, arbitrary SQL/file-system/browser tools.
+
+## 3. Genuine blockers
+
+| Blocker | Status |
+|---|---|
+| No live repository to inspect | Cannot resolve from this environment; scaffold is written as a fresh project. |
+| Docker/Supabase availability unknown | Cannot confirm whether `supabase start` will run. DB/RLS tests are written but may remain unexecuted. |
+| Rubric stack mandate | Not supplied. Baseline used as instructed. |
+| Real Supabase env values | Not supplied and must not be. `.env.example` documents names only. |
+
+## 4. Intended testing stack
+
+| Layer | Tool | Purpose |
+|---|---|---|
+| Unit | Vitest + React Testing Library | Validation schemas, auth helpers, client components |
+| E2E | Playwright | Login, protected route, profile update flow |
+| Database/RLS | pgTAP via `supabase test db` | Positive/negative RLS, audit-table immutability |
+| Type/static | TypeScript + ESLint | Type safety and lint |
+
+---
+
+# Implementation
+
+> I cannot execute commands in this environment. The following files and commands are provided for local execution. **No tests are claimed to have passed.**
+
+## 5. Root files
+
+### `package.json`
+
+```json
+{
+  "name": "campus360",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.8.0",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:e2e": "playwright test",
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "db:reset": "supabase db reset",
+    "db:seed:users": "tsx scripts/seed-users.ts",
+    "db:test": "supabase test db"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^3.10.0",
+    "@supabase/ssr": "^0.6.1",
+    "@supabase/supabase-js": "^2.49.1",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.468.0",
+    "next": "15.3.2",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-hook-form": "^7.54.2",
+    "tailwind-merge": "^2.6.0",
+    "tailwindcss-animate": "^1.0.7",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.51.0",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.2.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^22.13.10",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.21",
+    "eslint": "^9.22.0",
+    "eslint-config-next": "15.3.2",
+    "jsdom": "^26.0.0",
+    "postcss": "^8.5.3",
+    "supabase": "^2.19.7",
+    "tailwindcss": "^3.4.17",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^3.0.8"
+  }
+}
+```
+
+### `pnpm-workspace.yaml`
+
+Not required for a single package. Omit.
+
+### `.env.example`
+
+```bash
+# Supabase local development (from `supabase start`)
+NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-local-anon-key
+
+# Local seed script only — never expose to browser or commit real values
+SUPABASE_SERVICE_ROLE_KEY=your-local-service-role-key
+
+# App
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+### `next.config.ts`
+
+```ts
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  reactStrictMode: true,
+};
+
+export default nextConfig;
+```
+
+### `tsconfig.json`
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": false,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "plugins": [{ "name": "next" }],
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}
+```
+
+### `tailwind.config.ts`
+
+```ts
+import type { Config } from "tailwindcss";
+import animate from "tailwindcss-animate";
+
+const config: Config = {
+  darkMode: ["class"],
+  content: ["./src/**/*.{ts,tsx}"],
+  theme: {
+    extend: {
+      colors: {
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
+        primary: {
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--primary-foreground))",
+        },
+        muted: {
+          DEFAULT: "hsl(var(--muted))",
+          foreground: "hsl(var(--muted-foreground))",
+        },
+      },
+    },
+  },
+  plugins: [animate],
+};
+
+export default config;
+```
+
+### `postcss.config.mjs`
+
+```js
+export default {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
+};
+```
+
+### `eslint.config.mjs`
+
+```js
+import { dirname } from "path";
+import { fileURLToPath } from "url";
+import { FlatCompat } from "@eslint/eslintrc";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const compat = new FlatCompat({ baseDirectory: __dirname });
+
+const eslintConfig = [
+  ...compat.extends("next/core-web-vitals", "next/typescript"),
+];
+
+export default eslintConfig;
+```
+
+## 6. Supabase migrations and RLS
+
+### `supabase/migrations/0001_initial.sql`
+
+```sql
+-- Phase 1: identity, roles, audit
+create extension if not exists "pgcrypto";
+
+create table public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  display_name text not null check (char_length(display_name) between 1 and 120),
+  contact_email text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table public.user_roles (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  role text not null check (role in ('student', 'teacher', 'admin', 'driver', 'finance')),
+  scope text,
+  assigned_at timestamptz not null default now(),
+  assigned_by uuid references auth.users(id),
+  unique (user_id, role, scope)
+);
+
+create table public.audit_events (
+  id uuid primary key default gen_random_uuid(),
+  actor_id uuid references auth.users(id),
+  action text not null,
+  entity_type text not null,
+  entity_id uuid,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index audit_events_actor_idx on public.audit_events (actor_id, created_at desc);
+create index audit_events_entity_idx on public.audit_events (entity_type, entity_id, created_at desc);
+
+-- RLS
+alter table public.profiles enable row level security;
+alter table public.user_roles enable row level security;
+alter table public.audit_events enable row level security;
+
+-- Profiles: own row only
+create policy "profiles_select_own"
+  on public.profiles for select
+  to authenticated
+  using (auth.uid() = id);
+
+create policy "profiles_update_own"
+  on public.profiles for update
+  to authenticated
+  using (auth.uid() = id)
+  with check (auth.uid() = id);
+
+-- Roles: own rows only, read-only from client
+create policy "user_roles_select_own"
+  on public.user_roles for select
+  to authenticated
+  using (auth.uid() = user_id);
+
+-- Audit: no direct client policies. Controlled function only.
+
+-- Controlled audit write (security definer)
+create or replace function public.record_audit_event(
+  p_action text,
+  p_entity_type text,
+  p_entity_id uuid,
+  p_metadata jsonb default '{}'::jsonb
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'Not authenticated';
+  end if;
+  insert into public.audit_events (actor_id, action, entity_type, entity_id, metadata)
+  values (auth.uid(), p_action, p_entity_type, p_entity_id, p_metadata);
+end;
+$$;
+
+revoke all on function public.record_audit_event(text, text, uuid, jsonb) from public;
+grant execute on function public.record_audit_event(text, text, uuid, jsonb) to authenticated;
+
+-- Controlled profile update + audit in one transaction
+create or replace function public.update_my_display_name(p_display_name text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+begin
+  if v_user_id is null then
+    raise exception 'Not authenticated';
+  end if;
+  if p_display_name is null or char_length(trim(p_display_name)) = 0 then
+    raise exception 'Display name is required';
+  end if;
+
+  update public.profiles
+  set display_name = trim(p_display_name),
+      updated_at = now()
+  where id = v_user_id;
+
+  if not found then
+    raise exception 'Profile not found';
+  end if;
+
+  perform public.record_audit_event(
+    'profile.display_name.updated',
+    'profile',
+    v_user_id,
+    jsonb_build_object('display_name', trim(p_display_name))
+  );
+end;
+$$;
+
+revoke all on function public.update_my_display_name(text) from public;
+grant execute on function public.update_my_display_name(text) to authenticated;
+
+-- Prevent application roles from updating/deleting audit rows
+revoke update, delete on public.audit_events from authenticated;
+revoke update, delete on public.audit_events from anon;
+```
+
+### `supabase/seed.sql`
+
+```sql
+-- Domain seed only. Auth users are created by scripts/seed-users.ts.
+-- This file is intentionally empty for Phase 1 because profiles require auth.users.
+```
+
+## 7. Supabase clients and auth helpers
+
+### `src/lib/supabase/client.ts`
+
+```ts
+import { createBrowserClient } from "@supabase/ssr";
+
+export function createClient() {
+  return createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+  );
+}
+```
+
+### `src/lib/supabase/server.ts`
+
+```ts
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
+
+export async function createClient() {
+  const cookieStore = await cookies();
+
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options),
+            );
+          } catch {
+            // Server Component: cookie writes are handled by middleware.
+          }
+        },
+      },
+    },
+  );
+}
+```
+
+### `src/lib/supabase/middleware.ts`
+
+```ts
+import { createServerClient } from "@supabase/ssr";
+import { NextResponse, type NextRequest } from "next/server";
+
+export async function updateSession(request: NextRequest) {
+  let supabaseResponse = NextResponse.next({ request });
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value),
+          );
+          supabaseResponse = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options),
+          );
+        },
+      },
+    },
+  );
+
+  await supabase.auth.getUser();
+  return supabaseResponse;
+}
+```
+
+### `middleware.ts`
+
+```ts
+import { type NextRequest } from "next/server";
+import { updateSession } from "@/lib/supabase/middleware";
+
+export async function middleware(request: NextRequest) {
+  return updateSession(request);
+}
+
+export const config = {
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
+};
+```
+
+### `src/lib/auth.ts`
+
+```ts
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+
+export type AppRole = {
+  role: "student" | "teacher" | "admin" | "driver" | "finance";
+  scope: string | null;
+};
+
+export async function requireUser() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+
+  if (error || !user) {
+    redirect("/login");
+  }
+
+  return user;
+}
+
+export async function getUserRoles(userId: string): Promise<AppRole[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("user_roles")
+    .select("role, scope")
+    .eq("user_id", userId);
+
+  if (error) {
+    throw new Error("Unable to load roles");
+  }
+
+  return (data ?? []) as AppRole[];
+}
+```
+
+### `src/lib/validation/profile.ts`
+
+```ts
+import { z } from "zod";
+
+export const displayNameSchema = z
+  .string()
+  .trim()
+  .min(1, "Display name is required")
+  .max(120, "Display name must be 120 characters or fewer");
+
+export const updateProfileSchema = z.object({
+  displayName: displayNameSchema,
+});
+
+export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
+```
+
+## 8. App routes and vertical slice
+
+### `src/app/layout.tsx`
+
+```tsx
+import type { Metadata } from "next";
+import "./globals.css";
+
+export const metadata: Metadata = {
+  title: "Campus360",
+  description: "Campus operations and student self-service",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
+  return (
+    <html lang="en">
+      <body className="min-h-screen bg-background text-foreground antialiased">
+        {children}
+      </body>
+    </html>
+  );
+}
+```
+
+### `src/app/globals.css`
+
+```css
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 0 0% 100%;
+  --foreground: 222 47% 11%;
+  --primary: 262 83% 58%;
+  --primary-foreground: 0 0% 100%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 47%;
+}
+
+.dark {
+  --background: 222 47% 7%;
+  --foreground: 210 40% 98%;
+  --primary: 263 70% 60%;
+  --primary-foreground: 0 0% 100%;
+  --muted: 217 33% 17%;
+  --muted-foreground: 215 20% 65%;
+}
+```
+
+### `src/app/page.tsx`
+
+```tsx
+import Link from "next/link";
+
+export default function HomePage() {
+  return (
+    <main className="mx-auto flex min-h-screen max-w-3xl flex-col justify-center gap-6 p-8">
+      <div>
+        <p className="text-sm font-medium text-primary">Campus360</p>
+        <h1 className="mt-2 text-4xl font-semibold tracking-tight">
+          Phase 1 foundation
+        </h1>
+        <p className="mt-3 max-w-xl text-muted-foreground">
+          Protected profile read path and controlled audit-backed mutation.
+          Synthetic data only.
+        </p>
+      </div>
+      <div className="flex gap-3">
+        <Link
+          href="/login"
+          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+        >
+          Sign in
+        </Link>
+        <Link
+          href="/profile"
+          className="rounded-md border px-4 py-2 text-sm font-medium"
+        >
+          Profile
+        </Link>
+      </div>
+    </main>
+  );
+}
+```
+
+### `src/app/login/page.tsx`
+
+```tsx
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+
+export default function LoginPage() {
+  const router = useRouter();
+  const supabase = createClient();
+  const [email, setEmail] = useState("student1@example.com");
+  const [password, setPassword] = useState("password123");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setPending(true);
+
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    setPending(false);
+
+    if (signInError) {
+      setError("Unable to sign in. Check your credentials.");
+      return;
+    }
+
+    router.push("/profile");
+    router.refresh();
+  }
+
+  return (
+    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center p-8">
+      <h1 className="text-2xl font-semibold">Sign in</h1>
+      <p className="mt-2 text-sm text-muted-foreground">
+        Use synthetic seeded credentials. Never enter real student data.
+      </p>
+      <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+        <div>
+          <label htmlFor="email" className="text-sm font-medium">
+            Email
+          </label>
+          <input
+            id="email"
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="mt-1 w-full rounded-md border px-3 py-2"
+          />
+        </div>
+        <div>
+          <label htmlFor="password" className="text-sm font-medium">
+            Password
+          </label>
+          <input
+            id="password"
+            type="password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="mt-1 w-full rounded-md border px-3 py-2"
+          />
+        </div>
+        {error ? (
+          <p role="alert" className="text-sm text-red-600">
+            {error}
+          </p>
+        ) : null}
+        <button
+          type="submit"
+          disabled={pending}
+          className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+        >
+          {pending ? "Signing in…" : "Sign in"}
+        </button>
+      </form>
+    </main>
+  );
+}
+```
+
+### `src/app/auth/callback/route.ts`
+
+```ts
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+
+export async function GET(request: Request) {
+  const { searchParams, origin } = new URL(request.url);
+  const code = searchParams.get("code");
+  const next = searchParams.get("next") ?? "/profile";
+
+  if (code) {
+    const supabase = await createClient();
+    await supabase.auth.exchangeCodeForSession(code);
+  }
+
+  return NextResponse.redirect(`${origin}${next}`);
+}
+```
+
+### `src/app/profile/page.tsx`
+
+```tsx
+import { requireUser, getUserRoles } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
+import { ProfileForm } from "./profile-form";
+
+export const dynamic = "force-dynamic";
+
+export default async function ProfilePage() {
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  const { data: profile, error } = await supabase
+    .from("profiles")
+    .select("id, display_name, contact_email, created_at, updated_at")
+    .eq("id", user.id)
+    .single();
+
+  if (error || !profile) {
+    return (
+      <main className="mx-auto max-w-2xl p-8">
+        <h1 className="text-2xl font-semibold">Profile</h1>
+        <p className="mt-4 text-sm text-red-600" role="alert">
+          Unable to load your profile. If this persists, contact an
+          administrator.
+        </p>
+      </main>
+    );
+  }
+
+  const roles = await getUserRoles(user.id);
+
+  return (
+    <main className="mx-auto max-w-2xl space-y-8 p-8">
+      <header>
+        <p className="text-sm text-muted-foreground">Signed in as</p>
+        <h1 className="text-2xl font-semibold">{profile.display_name}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {profile.contact_email ?? "No contact email"}
+        </p>
+      </header>
+
+      <section aria-labelledby="roles-heading">
+        <h2 id="roles-heading" className="text-lg font-medium">
+          Roles
+        </h2>
+        <ul className="mt-2 space-y-1 text-sm">
+          {roles.length === 0 ? (
+            <li className="text-muted-foreground">No roles assigned.</li>
+          ) : (
+            roles.map((r) => (
+              <li key={`${r.role}-${r.scope ?? "global"}`}>
+                {r.role}
+                {r.scope ? ` — ${r.scope}` : ""}
+              </li>
+            ))
+          )}
+        </ul>
+      </section>
+
+      <ProfileForm initialDisplayName={profile.display_name} />
+    </main>
+  );
+}
+```
+
+### `src/app/profile/profile-form.tsx`
+
+```tsx
+"use client";
+
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import {
+  updateProfileSchema,
+  type UpdateProfileInput,
+} from "@/lib/validation/profile";
+
+export function ProfileForm({
+  initialDisplayName,
+}: {
+  initialDisplayName: string;
+}) {
+  const router = useRouter();
+  const supabase = createClient();
+  const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
+  const [message, setMessage] = useState<string | null>(null);
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+    reset,
+  } = useForm<UpdateProfileInput>({
+    resolver: zodResolver(updateProfileSchema),
+    defaultValues: { displayName: initialDisplayName },
+  });
+
+  async function onSubmit(values: UpdateProfileInput) {
+    setStatus("idle");
+    setMessage(null);
+
+    const { error } = await supabase.rpc("update_my_display_name", {
+      p_display_name: values.displayName,
+    });
+
+    if (error) {
+      setStatus("error");
+      setMessage("Could not save. You may not have permission.");
+      return;
+    }
+
+    setStatus("success");
+    setMessage("Display name updated.");
+    reset({ displayName: values.displayName });
+    router.refresh();
+  }
+
+  return (
+    <section aria-labelledby="edit-heading">
+      <h2 id="edit-heading" className="text-lg font-medium">
+        Edit display name
+      </h2>
+      <form onSubmit={handleSubmit(onSubmit)} className="mt-3 space-y-4">
+        <div>
+          <label htmlFor="displayName" className="text-sm font-medium">
+            Display name
+          </label>
+          <input
+            id="displayName"
+            {...register("displayName")}
+            className="mt-1 w-full rounded-md border px-3 py-2"
+            aria-invalid={errors.displayName ? "true" : "false"}
+          />
+          {errors.displayName ? (
+            <p className="mt-1 text-sm text-red-600" role="alert">
+              {errors.displayName.message}
+            </p>
+          ) : null}
+        </div>
+
+        {status === "success" ? (
+          <p role="status" className="text-sm text-green-700">
+            {message}
+          </p>
+        ) : null}
+        {status === "error" ? (
+          <p role="alert" className="text-sm text-red-600">
+            {message}
+          </p>
+        ) : null}
+
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+        >
+          {isSubmitting ? "Saving…" : "Save"}
+        </button>
+      </form>
+    </section>
+  );
+}
+```
+
+## 9. Seed script
+
+### `scripts/seed-users.ts`
+
+```ts
+import { createClient } from "@supabase/supabase-js";
+import "dotenv/config";
+
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!url || !serviceRoleKey) {
+  console.error(
+    "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env.local",
+  );
+  process.exit(1);
+}
+
+const supabase = createClient(url, serviceRoleKey, {
+  auth: { autoRefreshToken: false, persistSession: false },
+});
+
+const users = [
+  {
+    email: "student1@example.com",
+    password: "password123",
+    role: "student" as const,
+    displayName: "Student One",
+  },
+  {
+    email: "student2@example.com",
+    password: "password123",
+    role: "student" as const,
+    displayName: "Student Two",
+  },
+  {
+    email: "teacher1@example.com",
+    password: "password123",
+    role: "teacher" as const,
+    displayName: "Teacher One",
+  },
+];
+
+async function main() {
+  for (const user of users) {
+    const { data, error } = await supabase.auth.admin.createUser({
+      email: user.email,
+      password: user.password,
+      email_confirm: true,
+      user_metadata: { full_name: user.displayName },
+    });
+
+    if (error) {
+      console.error(`Failed to create ${user.email}:`, error.message);
+      continue;
+    }
+
+    const userId = data.user.id;
+
+    const { error: profileError } = await supabase.from("profiles").insert({
+      id: userId,
+      display_name: user.displayName,
+      contact_email: user.email,
+    });
+
+    if (profileError) {
+      console.error(`Profile insert failed for ${user.email}:`, profileError.message);
+      continue;
+    }
+
+    const { error: roleError } = await supabase.from("user_roles").insert({
+      user_id: userId,
+      role: user.role,
+      scope: "demo",
+    });
+
+    if (roleError) {
+      console.error(`Role insert failed for ${user.email}:`, roleError.message);
+      continue;
+    }
+
+    console.log(`Seeded ${user.email}`);
+  }
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
+```
+
+## 10. Tests
+
+### `vitest.config.ts`
+
+```ts
+import { defineConfig } from "vitest/config";
+import react from "@vitejs/plugin-react";
+import tsconfigPaths from "vite-tsconfig-paths";
+
+export default defineConfig({
+  plugins: [tsconfigPaths(), react()],
+  test: {
+    environment: "jsdom",
+    globals: true,
+    setupFiles: ["./vitest.setup.ts"],
+    include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    exclude: ["**/e2e/**", "**/node_modules/**"],
+  },
+});
+```
+
+### `vitest.setup.ts`
+
+```ts
+import "@testing-library/jest-dom/vitest";
+import { cleanup } from "@testing-library/react";
+import { afterEach } from "vitest";
+
+afterEach(() => {
+  cleanup();
+});
+```
+
+### `src/lib/validation/profile.test.ts`
+
+```ts
+import { describe, expect, it } from "vitest";
+import { updateProfileSchema } from "./profile";
+
+describe("updateProfileSchema", () => {
+  it("accepts a valid display name", () => {
+    const result = updateProfileSchema.safeParse({ displayName: "Asha Nair" });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an empty display name", () => {
+    const result = updateProfileSchema.safeParse({ displayName: "   " });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects names over 120 characters", () => {
+    const result = updateProfileSchema.safeParse({
+      displayName: "a".repeat(121),
+    });
+    expect(result.success).toBe(false);
+  });
+});
+```
+
+### `src/lib/auth.test.ts`
+
+Because `requireUser` depends on Next.js and Supabase, a lightweight unit test mocks the Supabase server client.
+
+```ts
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: vi.fn(),
+}));
+
+import { createClient } from "@/lib/supabase/server";
+import { requireUser } from "./auth";
+
+describe("requireUser", () => {
+  it("returns the authenticated user", async () => {
+    const user = { id: "user-1", email: "student1@example.com" };
+    vi.mocked(createClient).mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user }, error: null }) },
+    } as never);
+
+    await expect(requireUser()).resolves.toEqual(user);
+  });
+
+  it("redirects when there is no user", async () => {
+    vi.mocked(createClient).mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: new Error("no session") }) },
+    } as never);
+
+    await expect(requireUser()).rejects.toThrow("NEXT_REDIRECT");
+  });
+});
+```
+
+> The redirect test relies on Next.js throwing `NEXT_REDIRECT`; it may need adjustment depending on the Next.js test environment.
+
+### `playwright.config.ts`
+
+```ts
+import { defineConfig, devices } from "@playwright/test";
+
+export default defineConfig({
+  testDir: "./e2e",
+  fullyParallel: true,
+  retries: 0,
+  use: {
+    baseURL: "http://localhost:3000",
+    trace: "on-first-retry",
+  },
+  projects: [
+    {
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"] },
+    },
+  ],
+  webServer: {
+    command: "pnpm dev",
+    url: "http://localhost:3000",
+    reuseExistingServer: !process.env.CI,
+    timeout: 120_000,
+  },
+});
+```
+
+### `e2e/profile.spec.ts`
+
+```ts
+import { test, expect } from "@playwright/test";
+
+test("unauthenticated visitor is redirected from profile", async ({ page }) => {
+  await page.goto("/profile");
+  await expect(page).toHaveURL(/\/login/);
+});
+
+test("seeded student can sign in and read own profile", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("student1@example.com");
+  await page.getByLabel("Password").fill("password123");
+  await page.getByRole("button", { name: "Sign in" }).click();
+
+  await expect(page).toHaveURL(/\/profile/);
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(
+    "Student One",
+  );
+  await expect(page.getByText("student")).toBeVisible();
+});
+
+test("student can update display name and sees persisted success", async ({
+  page,
+}) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("student1@example.com");
+  await page.getByLabel("Password").fill("password123");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/profile/);
+
+  await page.getByLabel("Display name").fill("Student One Updated");
+  await page.getByRole("button", { name: "Save" }).click();
+
+  await expect(page.getByRole("status")).toHaveText("Display name updated.");
+  await page.reload();
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(
+    "Student One Updated",
+  );
+});
+```
+
+### `supabase/tests/rls.test.sql`
+
+```sql
+begin;
+select plan(8);
+
+-- Helper: create test users in auth schema for RLS checks.
+insert into auth.users (id, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+values
+  ('00000000-0000-0000-0000-000000000001', 'rls-student1@example.com', crypt('password123', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{}', now(), now()),
+  ('00000000-0000-0000-0000-000000000002', 'rls-student2@example.com', crypt('password123', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{}', now(), now());
+
+insert into public.profiles (id, display_name, contact_email)
+values
+  ('00000000-0000-0000-0000-000000000001', 'RLS Student One', 'rls-student1@example.com'),
+  ('00000000-0000-0000-0000-000000000002', 'RLS Student Two', 'rls-student2@example.com');
+
+insert into public.user_roles (user_id, role, scope)
+values
+  ('00000000-0000-0000-0000-000000000001', 'student', 'demo'),
+  ('00000000-0000-0000-0000-000000000002', 'student', 'demo');
+
+-- Anonymous cannot read profiles.
+set local role anon;
+select is_empty('select * from public.profiles', 'anon cannot read profiles');
+reset role;
+
+-- Student 1 can read own profile.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select results_eq(
+  'select display_name from public.profiles where id = ''00000000-0000-0000-0000-000000000001''',
+  ARRAY['RLS Student One'],
+  'student1 can read own profile'
+);
+reset role;
+
+-- Student 1 cannot read student 2 profile.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select is_empty(
+  'select * from public.profiles where id = ''00000000-0000-0000-0000-000000000002''',
+  'student1 cannot read student2 profile'
+);
+reset role;
+
+-- Student 1 can update own profile through RPC.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select lives_ok(
+  $$select public.update_my_display_name('Updated Name')$$,
+  'student1 can update own display name'
+);
+reset role;
+
+-- Update persisted and audit event exists.
+select results_eq(
+  'select display_name from public.profiles where id = ''00000000-0000-0000-0000-000000000001''',
+  ARRAY['Updated Name'],
+  'display name updated'
+);
+
+select results_eq(
+  'select action from public.audit_events where actor_id = ''00000000-0000-0000-0000-000000000001'' order by created_at desc limit 1',
+  ARRAY['profile.display_name.updated'],
+  'audit event recorded'
+);
+
+-- Authenticated cannot directly update audit events.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select throws_ok(
+  $$update public.audit_events set action = 'tampered'$$,
+  '42501',
+  null,
+  'authenticated cannot update audit events'
+);
+reset role;
+
+-- Authenticated cannot directly delete audit events.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select throws_ok(
+  $$delete from public.audit_events$$,
+  '42501',
+  null,
+  'authenticated cannot delete audit events'
+);
+reset role;
+
+select * from finish();
+rollback;
+```
+
+## 11. Commands to run locally
+
+```bash
+# 1. Install
+pnpm install
+
+# 2. Start local Supabase (requires Docker)
+pnpm db:start
+
+# 3. Copy env and fill local keys from `supabase start` output
+cp .env.example .env.local
+
+# 4. Reset DB and apply migrations
+pnpm db:reset
+
+# 5. Seed synthetic auth users and profiles/roles
+pnpm db:seed:users
+
+# 6. Typecheck, lint, unit tests
+pnpm typecheck
+pnpm lint
+pnpm test:run
+
+# 7. Run app
+pnpm dev
+
+# 8. In another terminal, E2E (requires app running or webServer config)
+pnpm test:e2e
+
+# 9. Database/RLS tests
+pnpm db:test
+```
+
+## 12. Handover format
+
+### 1. Summary of what was implemented
+
+Phase 1 foundation scaffold: Next.js App Router + TypeScript + Tailwind + pnpm. Supabase local setup with migrations, RLS, controlled audit RPC, protected profile read path, profile display-name mutation with atomic audit write, login page, middleware session refresh, seed script, Vitest/Playwright/pgTAP test scaffolding. No other product modules or AI tools.
+
+### 2. Files created/changed and why
+
+All files listed in §§5–10 are new. They cover: project configuration, Supabase clients/middleware, auth helpers, validation schema, login/profile routes, profile form, seed script, unit/E2E/RLS tests.
+
+### 3. Database migrations/RLS policies added
+
+`supabase/migrations/0001_initial.sql`:
+- `profiles`, `user_roles`, `audit_events`.
+- RLS enabled on all three.
+- Profile select/update own-row policies; role select own-row policy; audit no direct client policies.
+- `record_audit_event` and `update_my_display_name` security-definer RPCs granted to `authenticated`.
+- Direct `UPDATE`/`DELETE` on `audit_events` revoked from `authenticated` and `anon`.
+
+### 4. Commands run and actual pass/fail results
+
+**Not executed.** I cannot run commands in this environment. The commands in §11 must be run locally. No test is claimed to have passed.
+
+### 5. Authorization/security tests and remaining unverified risks
+
+**Written but unexecuted:**
+- Vitest validation tests.
+- Auth helper unit tests (may need adjustment for `NEXT_REDIRECT`).
+- Playwright unauthenticated redirect, login, own-profile read, profile update persistence.
+- pgTAP RLS positive/negative tests and audit-table UPDATE/DELETE denial.
+
+**Remaining unverified risks:**
+- Docker/Supabase may not be available; `supabase start` and `db:test` are unverified.
+- The pgTAP test inserts directly into `auth.users`; this may need adjustment depending on local Supabase auth triggers/extensions.
+- The auth helper redirect test depends on Next.js internals.
+- Playwright tests assume seeded users exist and the app is reachable.
+- No real browser or network was used.
+
+### 6. Environment variables needed (names only)
+
+```
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+SUPABASE_SERVICE_ROLE_KEY   # local seed script only
+NEXT_PUBLIC_APP_URL
+```
+
+### 7. Known issues and next smallest task
+
+**Known issues:**
+- `auth.test.ts` redirect assertion may need to be rewritten as an integration test because Next.js redirect behavior is environment-dependent.
+- pgTAP test auth-user insertion may need a helper function or adjustment for local Supabase auth schema.
+- Tailwind v3 is used for stability; shadcn/ui initialization is not run in this pass.
+- No shadcn/ui components are installed yet.
+
+**Next smallest task:** Run `pnpm install`, `pnpm db:start`, `pnpm db:reset`, and `pnpm db:seed:users` locally. Verify the seeded student can sign in, read `/profile`, update the display name, and confirm the audit row exists. Then run `pnpm test:run`, `pnpm test:e2e`, and `pnpm db:test`, and report actual results before implementing the next module.

@@ -1,0 +1,21 @@
+I'll take on this multi-model design review of Campus360. Since the deliverable is a full review document, let me first load the document-creation skill, then work through the artifacts and research.
+The docx skill is loaded. Now let me set up my task plan and read the full artifacts.
+Let me read the design document in smaller chunks to get the remaining sections.
+Now let me read the HTML prototype's body and JavaScript to extract specific demo behaviors for traceability.
+I now have a complete picture of both artifacts. Key evidence collected (role-switcher login, simulated AI predictions, fake payment flow, temp-password toast in admin console, etc.). Now let me research current official documentation for the load-bearing claims.
+Good progress. Now let me verify the Supabase pause/backup policy, AI SDK tool-calling API, and Ollama tool support with direct fetches.
+Research complete. I now have verified official sources for all load-bearing claims. Let me load the docx skill's implementation files.
+All skill files are loaded. Now let me set the outline for the review document before generating content.
+Environment is ready. Now I'll write the content modules for the review document — starting with the front matter, Section A (Executive Review) and Section B (Traceability Matrix).
+Now the main builder script that assembles the document per the docx skill rules (R1 cover recipe, DM-1 palette, 3-section structure, TOC with placeholders):
+The document is generated. Now running the mandatory post-processing steps (TOC placeholders, footer field patch, then postcheck):
+Three issues to fix: the double page break (TOC section ends with PageBreak before a NEXT_PAGE section), the H1→H3 skip in Section C, and the Consolas font fallback. Let me fix all three:
+Now rebuild and re-run the full post-processing chain:
+All 9 checks pass. Let me do a final content verification — extract text to confirm all sections A–J are present and check the document renders correctly:
+The structure is complete. Let me verify the 18 patches and tables rendered in the body:
+All verification passed: 18 patches, 10 tables, 48 A4 pages. Let me write the worklog entry to complete the task:
+The full review is delivered as **`/home/z/my-project/download/Campus360_Design_Review.docx`** — 48 pages covering all requested sections A–J: executive review, traceability matrix (25 sketch features + 15 prototype screens), a 20-finding register, architecture/data-model/security reviews, the AI assistant design with tool catalogue and adversarial eval set, a milestone plan, 18 mergeable patches marked ACCEPT/CONSIDER, and 9 blocking questions with safe defaults.
+
+**Executive digest:** Design v0.1 is a strong, unusually disciplined baseline — keep its stack and principles. Top risks: (1) scope ≫ capacity, no enforced MVP cut-line; (2) undecided client-RLS vs server data-access rule + tamperable audit log; (3) source privacy conflicts (admin password display, flagged-chat browsing, anonymity overpromise); (4) free-tier realities (no Supabase backups, project pausing, Vercel Hobby non-commercial); (5) AI safety/cost controls not yet concrete. MVP: auth+RLS, attendance, notes, assignments, marks/results, complaints, calendar, admin/audit — with transport and AI as time-boxed differentiators; Connect/chat/analytics deferred. All current claims carry official citations (AI SDK `toolApproval`/`stopWhen`, Supabase backups/pausing, Ollama/vLLM tool-call caveats, DPDP 2025).
+
+**Suggested next steps:** answer Table 10's nine questions, apply the ACCEPT-marked patches to produce design v0.2, then have a second reviewer diff v0.1→v0.2 before coding starts. I can also convert the patch list into a ready-to-merge markdown diff if you'd like.
