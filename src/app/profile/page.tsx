@@ -1,6 +1,7 @@
 import { requireUser, getUserRoles } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { ProfileForm } from "./profile-form";
+import { signOut } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +58,11 @@ export default async function ProfilePage() {
       </section>
 
       <ProfileForm initialDisplayName={profile.display_name} />
+      <form action={signOut}>
+        <button type="submit" className="rounded-md border px-4 py-2 text-sm font-medium">
+          Sign out
+        </button>
+      </form>
     </main>
   );
 }

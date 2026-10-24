@@ -67,11 +67,14 @@ async function main() {
 
     if (profileError) throw new Error(`Profile upsert failed for ${user.email}: ${profileError.message}`);
 
-    const { error: roleError } = await supabase.from("user_roles").upsert({
-      user_id: userId,
-      role: user.role,
-      scope: "demo",
-    });
+    const { error: roleError } = await supabase.from("user_roles").upsert(
+      {
+        user_id: userId,
+        role: user.role,
+        scope: "demo",
+      },
+      { onConflict: "user_id,role,scope" },
+    );
 
     if (roleError) throw new Error(`Role upsert failed for ${user.email}: ${roleError.message}`);
 

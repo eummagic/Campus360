@@ -19,7 +19,7 @@ export async function createClient() {
               cookieStore.set(name, value, options),
             );
           } catch {
-            // Server Component: cookie writes are handled by middleware.
+            // Server Component: cookie writes are handled by the root proxy.
           }
         },
       },

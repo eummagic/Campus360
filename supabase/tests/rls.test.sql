@@ -1,5 +1,5 @@
 begin;
-select plan(10);
+select plan(11);
 
 -- Helper: create test users in auth schema for RLS checks.
 insert into auth.users (id, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
@@ -101,6 +101,7 @@ select throws_ok(
 select throws_ok(
   $$select public.update_my_display_name(repeat('x', 121))$$,
   'P0001',
+  'Display name must be 120 characters or fewer',
   'profile RPC rejects names over 120 characters'
 );
 reset role;

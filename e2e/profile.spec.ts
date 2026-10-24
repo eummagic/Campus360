@@ -15,7 +15,7 @@ test("seeded student can sign in and read own profile", async ({ page }) => {
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
     "Student One",
   );
-  await expect(page.getByText("student")).toBeVisible();
+  await expect(page.getByText("student — demo", { exact: true })).toBeVisible();
 });
 
 test("student can update display name and sees persisted success", async ({
@@ -27,7 +27,7 @@ test("student can update display name and sees persisted success", async ({
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/profile/);
 
-  await page.getByLabel("Display name").fill("Student One Updated");
+  await page.getByRole("textbox", { name: "Display name" }).fill("Student One Updated");
   await page.getByRole("button", { name: "Save" }).click();
 
   await expect(page.getByRole("status")).toHaveText("Display name updated.");
@@ -35,4 +35,9 @@ test("student can update display name and sees persisted success", async ({
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
     "Student One Updated",
   );
+
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await expect(page).toHaveURL(/\/login/);
+  await page.goto("/profile");
+  await expect(page).toHaveURL(/\/login/);
 });

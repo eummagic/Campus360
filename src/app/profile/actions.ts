@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { updateProfileSchema } from "@/lib/validation/profile";
@@ -32,4 +33,11 @@ export async function updateDisplayName(
 
   revalidatePath("/profile");
   return { ok: true };
+}
+
+export async function signOut() {
+  await requireUser();
+  const supabase = await createClient();
+  await supabase.auth.signOut();
+  redirect("/login");
 }
