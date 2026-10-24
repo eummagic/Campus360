@@ -6,10 +6,10 @@ export default function HomePage() {
       <div>
         <p className="text-sm font-medium text-primary">Campus360</p>
         <h1 className="mt-2 text-4xl font-semibold tracking-tight">
-          Phase 1 foundation
+          Phase 2A — Academic foundation
         </h1>
         <p className="mt-3 max-w-xl text-muted-foreground">
-          Protected profile read path and controlled audit-backed mutation.
+          Role-scoped academic structure, student records, and directory.
           Synthetic data only.
         </p>
       </div>
@@ -21,10 +21,10 @@ export default function HomePage() {
           Sign in
         </Link>
         <Link
-          href="/profile"
+          href="/dashboard"
           className="rounded-md border px-4 py-2 text-sm font-medium"
         >
-          Profile
+          Dashboard
         </Link>
       </div>
     </main>
