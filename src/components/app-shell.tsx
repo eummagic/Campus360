@@ -1,9 +1,10 @@
 import type { ReactNode } from "react";
-import Link from "next/link";
-import type { AppRole } from "@/lib/auth";
-import { hasRole, isStaff } from "@/lib/auth";
+import { cookies } from "next/headers";
+import { hasRole, isStaff, type AppRole } from "@/lib/auth";
+import { AppNavigation } from "@/components/app-navigation";
+import { signOut } from "@/app/profile/actions";
 
-export function AppShell({
+export async function AppShell({
   roles,
   displayName,
   children,
@@ -12,23 +13,26 @@ export function AppShell({
   displayName: string;
   children: ReactNode;
 }) {
+  const initialTheme = (await cookies()).get("campus360-theme")?.value === "light" ? "light" : "dark";
   const staff = isStaff(roles);
   const admin = hasRole(roles, "admin");
 
   return (
-    <div className="min-h-screen">
-      <header className="border-b bg-muted/30">
-        <nav aria-label="Main navigation" className="mx-auto flex max-w-6xl flex-wrap items-center gap-4 px-4 py-3 text-sm">
-          <Link href="/dashboard" className="font-semibold">Campus360</Link>
-          <Link href="/dashboard" className="hover:underline">Dashboard</Link>
-          {staff ? <Link href="/directory" className="hover:underline">Directory</Link> : null}
-          {admin ? <Link href="/admin/academics" className="hover:underline">Academics</Link> : null}
-          {admin ? <Link href="/admin/students/new" className="hover:underline">Add Student</Link> : null}
-          <Link href="/profile" className="hover:underline">Profile</Link>
-          <span className="ml-auto text-muted-foreground">{displayName}</span>
-        </nav>
-      </header>
-      <main className="mx-auto max-w-6xl space-y-6 p-6">{children}</main>
+    <div className="min-h-screen bg-background lg:grid lg:grid-cols-[16rem_minmax(0,1fr)]">
+      <AppNavigation
+        isStaff={staff}
+        isAdmin={admin}
+        displayName={displayName}
+        initialTheme={initialTheme}
+        accountAction={
+          <form action={signOut}>
+            <button type="submit" className="w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+              Sign out
+            </button>
+          </form>
+        }
+      />
+      <main className="w-full min-w-0 space-y-6 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">{children}</main>
     </div>
   );
 }

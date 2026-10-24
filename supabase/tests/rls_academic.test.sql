@@ -1,5 +1,5 @@
 begin;
-select plan(33);
+select plan(34);
 
 insert into auth.users (id, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 values
@@ -65,6 +65,7 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000006","role":"authenticated"}', true);
 select is_empty('select * from public.student_records', 'driver cannot read student records');
 select is_empty('select * from public.enrolments', 'driver cannot read enrolments');
+select is_empty('select * from public.list_unlinked_student_users()', 'driver cannot retrieve admin-only candidate accounts');
 select results_eq('select code from public.departments where code = ''RLS_CSE''', ARRAY['RLS_CSE'], 'authenticated driver may read reference data');
 reset role;
 
@@ -96,7 +97,11 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 select results_eq('select count(*)::int from public.student_records where registration_number like ''RLS_%''', ARRAY[3], 'admin sees all fixture student records');
 select results_eq('select count(*)::int from public.enrolments e join public.student_records sr on sr.id=e.student_record_id where sr.registration_number like ''RLS_%''', ARRAY[3], 'admin sees all fixture enrolments');
-select results_eq('select user_id from public.list_unlinked_student_users() where user_id = ''10000000-0000-0000-0000-000000000008''', ARRAY['10000000-0000-0000-0000-000000000008'::uuid], 'admin candidate RPC includes intended unlinked student');
+select results_eq(
+  $$select user_id::text from public.list_unlinked_student_users() order by user_id$$,
+  ARRAY['10000000-0000-0000-0000-000000000008'],
+  'admin candidate RPC returns only eligible unlinked accounts and excludes linked students'
+);
 select lives_ok($$update public.departments set name = 'RLS Computer Science and Engineering' where code = 'RLS_CSE'$$, 'admin may update reference data');
 select is((select actor_id::text from public.audit_events where action = 'departments.updated' and entity_id = '20000000-0000-0000-0000-000000000001'), null::text, 'academic audit allows null actor for trusted postgres execution');
 select lives_ok($$insert into public.student_records (id, user_id, registration_number, program_id) values ('70000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000008', 'RLS_CSE2023003', '30000000-0000-0000-0000-000000000001')$$, 'admin may create a student record');

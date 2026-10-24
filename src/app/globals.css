@@ -3,19 +3,79 @@
 @tailwind utilities;
 
 :root {
-  --background: 0 0% 100%;
-  --foreground: 222 47% 11%;
-  --primary: 262 83% 58%;
-  --primary-foreground: 0 0% 100%;
-  --muted: 210 40% 96%;
-  --muted-foreground: 215 16% 47%;
+  color-scheme: dark;
+  --background: 222 47% 8%;
+  --foreground: 210 40% 98%;
+  --sidebar: 222 45% 11%;
+  --card: 221 39% 18%;
+  --border: 222 28% 27%;
+  --primary: 258 90% 66%;
+  --primary-foreground: 222 47% 8%;
+  --accent: 158 64% 67%;
+  --muted: 222 34% 20%;
+  --muted-foreground: 220 25% 75%;
+  --danger: 0 91% 71%;
+  --success: 158 64% 67%;
 }
 
-.dark {
-  --background: 222 47% 7%;
-  --foreground: 210 40% 98%;
-  --primary: 263 70% 60%;
+.light {
+  color-scheme: light;
+  --background: 210 40% 98%;
+  --foreground: 222 47% 11%;
+  --sidebar: 220 33% 96%;
+  --card: 0 0% 100%;
+  --border: 214 25% 86%;
+  --primary: 262 83% 58%;
   --primary-foreground: 0 0% 100%;
-  --muted: 217 33% 17%;
-  --muted-foreground: 215 20% 65%;
+  --accent: 158 64% 34%;
+  --muted: 210 30% 94%;
+  --muted-foreground: 215 16% 42%;
+  --danger: 0 72% 45%;
+  --success: 158 64% 30%;
+}
+
+body {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  text-rendering: optimizeLegibility;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+input,
+select,
+textarea {
+  border-color: hsl(var(--border));
+  background-color: hsl(var(--card));
+  color: hsl(var(--foreground));
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: hsl(var(--muted-foreground));
+  opacity: 0.8;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+}
+
+::selection {
+  background: hsl(var(--primary) / 0.18);
+}
+
+.text-red-600 {
+  color: hsl(var(--danger));
+}
+
+.border-red-500 {
+  border-color: hsl(var(--danger));
+}
+
+.text-green-700 {
+  color: hsl(var(--success));
 }

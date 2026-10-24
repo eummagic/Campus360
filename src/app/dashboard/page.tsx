@@ -70,23 +70,35 @@ export default async function DashboardPage() {
       ])
     : null;
 
+  const quickActions = [
+    ...(ownRecord ? [{ href: `/directory/${ownRecord.student_record_id}`, label: "View my academic record", detail: "Review your program and enrolments." }] : []),
+    ...((isTeacher || isAdmin) ? [{ href: "/directory", label: "Student directory", detail: "Search students within your authorized scope." }] : []),
+    ...(isAdmin ? [
+      { href: "/admin/academics", label: "Academic structure", detail: "Review departments, programs, and offerings." },
+      { href: "/admin/students/new", label: "Create student record", detail: "Link an existing account to an academic record." },
+    ] : []),
+    { href: "/profile", label: "Profile settings", detail: "Update your display name and account details." },
+  ];
+
   return (
     <AppShell roles={roles} displayName={displayName}>
-      <header>
-        <h1 className="text-2xl font-semibold">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">Your Campus360 overview</p>
+      <header className="w-full rounded-2xl bg-gradient-to-br from-primary/10 via-background to-background px-6 py-5 ring-1 ring-border sm:px-7">
+        <p className="text-sm font-semibold uppercase tracking-wider text-primary">Campus360 overview</p>
+        <h1 className="mt-1 text-3xl font-bold tracking-tight">Welcome, {displayName}</h1>
+        <p className="mt-2 text-muted-foreground">Your academic information and tools in one place.</p>
       </header>
 
+      <div className="grid min-w-0 gap-6 xl:grid-cols-2">
       {isStudent ? (
-        <section aria-labelledby="student-context" className="space-y-3 rounded-lg border p-4">
-          <h2 id="student-context" className="text-lg font-medium">My academic record</h2>
+        <section aria-labelledby="student-context" className="space-y-4 rounded-xl border bg-card p-5 shadow-sm">
+          <h2 id="student-context" className="text-lg font-semibold">My academic record</h2>
           {ownRecord ? (
             <>
-              <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
-                <div><dt className="text-muted-foreground">Registration</dt><dd>{ownRecord.registration_number}</dd></div>
-                <div><dt className="text-muted-foreground">Program</dt><dd>{ownRecord.program_code} — {ownRecord.program_name}</dd></div>
-                <div><dt className="text-muted-foreground">Department</dt><dd>{ownRecord.department_name}</dd></div>
-                <div><dt className="text-muted-foreground">Status</dt><dd>{ownRecord.record_status}</dd></div>
+              <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-lg bg-muted/50 p-3"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Registration</dt><dd className="mt-1 font-medium">{ownRecord.registration_number}</dd></div>
+                <div className="rounded-lg bg-muted/50 p-3"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Program</dt><dd className="mt-1 font-medium">{ownRecord.program_code} — {ownRecord.program_name}</dd></div>
+                <div className="rounded-lg bg-muted/50 p-3"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Department</dt><dd className="mt-1 font-medium">{ownRecord.department_name}</dd></div>
+                <div className="rounded-lg bg-muted/50 p-3"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Status</dt><dd className="mt-1 font-medium capitalize">{ownRecord.record_status}</dd></div>
               </dl>
               <h3 className="text-sm font-medium">Enrolments</h3>
               {ownEnrolments.error ? (
@@ -113,20 +125,20 @@ export default async function DashboardPage() {
       ) : null}
 
       {isTeacher ? (
-        <section aria-labelledby="teaching-context" className="rounded-lg border p-4">
-          <h2 id="teaching-context" className="text-lg font-medium">My offerings</h2>
+        <section aria-labelledby="teaching-context" className="rounded-xl border bg-card p-5 shadow-sm">
+          <h2 id="teaching-context" className="text-lg font-semibold">My offerings</h2>
           {teacherResult.error ? (
             <p role="alert" className="text-sm text-red-600">Unable to load teaching assignments.</p>
           ) : teacherOfferings.length === 0 ? (
             <p className="text-sm text-muted-foreground">No teaching assignments yet.</p>
           ) : (
-            <ul className="mt-2 space-y-1 text-sm">
+            <ul className="mt-3 grid gap-3 sm:grid-cols-2">
               {teacherOfferings.map((row) => (
-                <li key={row.id}>
-                  <Link className="underline" href={`/directory?offering=${row.offering.id}`}>
+                <li key={row.id} className="rounded-lg border p-4 transition-shadow hover:shadow-sm">
+                  <Link className="font-medium text-primary underline-offset-4 hover:underline" href={`/directory?offering=${row.offering.id}`}>
                     {row.offering.subject.code} {row.offering.subject.name} — {row.offering.term.name} — section {row.offering.section_code}
                   </Link>
-                  {` — ${enrolmentCounts[row.offering.id] ?? 0} enrolled`}
+                  <p className="mt-2 text-sm text-muted-foreground">{enrolmentCounts[row.offering.id] ?? 0} students enrolled</p>
                 </li>
               ))}
             </ul>
@@ -135,17 +147,34 @@ export default async function DashboardPage() {
       ) : null}
 
       {isAdmin && adminTotals ? (
-        <section aria-labelledby="admin-totals" className="rounded-lg border p-4">
-          <h2 id="admin-totals" className="text-lg font-medium">Structure totals</h2>
-          <ul className="mt-2 grid grid-cols-2 gap-2 text-sm sm:grid-cols-5">
-            <li>Departments: {adminTotals[0].count ?? 0}</li>
-            <li>Programs: {adminTotals[1].count ?? 0}</li>
-            <li>Subjects: {adminTotals[2].count ?? 0}</li>
-            <li>Offerings: {adminTotals[3].count ?? 0}</li>
-            <li>Student records: {adminTotals[4].count ?? 0}</li>
+        <section aria-labelledby="admin-totals" className="rounded-xl border bg-card p-5 shadow-sm xl:col-span-2">
+          <h2 id="admin-totals" className="text-lg font-semibold">Structure totals</h2>
+          <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            {[["Departments", adminTotals[0].count], ["Programs", adminTotals[1].count], ["Subjects", adminTotals[2].count], ["Offerings", adminTotals[3].count], ["Student records", adminTotals[4].count]].map(([label, count]) => <li key={label} className="rounded-lg bg-muted/50 p-4"><span className="block text-2xl font-bold tabular-nums">{count ?? 0}</span><span className="mt-1 block text-sm text-muted-foreground">{label}</span></li>)}
           </ul>
         </section>
       ) : null}
+      </div>
+
+      <section aria-labelledby="quick-actions" className="w-full rounded-xl border border-border bg-card p-5 shadow-sm sm:p-6">
+        <div className="mb-4">
+          <h2 id="quick-actions" className="text-lg font-semibold">Quick actions</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Shortcuts to the tools available to your account.</p>
+        </div>
+        <ul className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {quickActions.map((action) => (
+            <li key={action.href}>
+              <Link href={action.href} className="group flex h-full min-w-0 items-start justify-between gap-3 rounded-lg border border-border bg-background p-4 transition-colors hover:border-primary/50 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                <span className="min-w-0">
+                  <span className="block font-medium text-foreground">{action.label}</span>
+                  <span className="mt-1 block text-sm text-muted-foreground">{action.detail}</span>
+                </span>
+                <span aria-hidden="true" className="shrink-0 text-primary transition-transform group-hover:translate-x-0.5">→</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
     </AppShell>
   );
 }
