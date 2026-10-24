@@ -20,6 +20,7 @@
     "db:test": "supabase test db"
   },
   "dependencies": {
+    "@google/genai": "^2.31.0",
     "@hookform/resolvers": "^3.10.0",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.49.1",
