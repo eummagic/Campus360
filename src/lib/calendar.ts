@@ -4,8 +4,12 @@ export type CalendarSchedule = {
   start_time: string;
   end_time: string;
   location: string | null;
-  term: { name: string; status: string; starts_on: string | null; ends_on: string | null };
-  offering: { id: string; section_code: string; subject: { code: string; name: string } };
+  offering: {
+    id: string;
+    section_code: string;
+    term: { name: string; status: string; starts_on: string | null; ends_on: string | null };
+    subject: { code: string; name: string };
+  };
 };
 
 export type CalendarEvent = {
@@ -29,22 +33,22 @@ export function monthDates(month: string): string[] {
   return Array.from({ length: count }, (_, index) => `${month}-${String(index + 1).padStart(2, "0")}`);
 }
 
-export function buildScheduleEvents(schedules: readonly CalendarSchedule[], month: string, isTeacher: boolean): CalendarEvent[] {
+export function buildScheduleEvents(schedules: readonly CalendarSchedule[], month: string, audience: "student" | "teacher" | "admin"): CalendarEvent[] {
   return schedules.flatMap((schedule) => {
-    if (schedule.term.status !== "active") return [];
+    if (schedule.offering.term.status !== "active") return [];
     return monthDates(month).filter((date) => {
       const weekday = new Date(`${date}T00:00:00Z`).getUTCDay() || 7;
       return weekday === schedule.weekday
-        && (!schedule.term.starts_on || date >= schedule.term.starts_on)
-        && (!schedule.term.ends_on || date <= schedule.term.ends_on);
+        && (!schedule.offering.term.starts_on || date >= schedule.offering.term.starts_on)
+        && (!schedule.offering.term.ends_on || date <= schedule.offering.term.ends_on);
     }).map((date) => ({
       id: `${schedule.id}-${date}`,
       date,
       kind: "class" as const,
       title: `${schedule.offering.subject.code} · section ${schedule.offering.section_code}`,
-      description: `${schedule.offering.subject.name} · ${schedule.term.name}${schedule.location ? ` · ${schedule.location}` : ""}`,
+      description: `${schedule.offering.subject.name} · ${schedule.offering.term.name}${schedule.location ? ` · ${schedule.location}` : ""}`,
       time: `${schedule.start_time.slice(0, 5)}–${schedule.end_time.slice(0, 5)}`,
-      href: isTeacher ? `/attendance?entry=${schedule.id}&date=${date}` : "/timetable",
+      href: audience === "teacher" ? `/attendance?entry=${schedule.id}&date=${date}` : audience === "admin" ? `/timetable?section=${encodeURIComponent(schedule.offering.section_code)}` : `/subjects/${schedule.offering.id}`,
     }));
   });
 }

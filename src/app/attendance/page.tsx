@@ -15,6 +15,9 @@ export const dynamic = "force-dynamic";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 const weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+function formatCampusDate(value: string) {
+  return new Intl.DateTimeFormat("en", { dateStyle: "medium", timeZone: "UTC" }).format(new Date(`${value}T00:00:00Z`));
+}
 type OfferingRow = { id: string; section_code: string; subject: { code: string; name: string }; term: { name: string } };
 type ScheduleRow = { id: string; weekday: number; start_time: string; end_time: string; offering: OfferingRow };
 type AttendanceSummary = { offering_id: string; subject_code: string; subject_name: string; section_code: string; recorded_sessions: number; recorded_marks?: number; present_count: number; absent_count: number; late_count: number };
@@ -33,11 +36,18 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
   const rawDate = typeof query.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(query.date) ? query.date : new Date().toISOString().slice(0, 10);
   const supabase = await createClient();
 
-  const [studentRecordResult, scheduleResult, summaryResult] = await Promise.all([
+  const [studentRecordResult, teacherAssignmentsResult, summaryResult] = await Promise.all([
     isStudent ? supabase.from("student_records").select("id").eq("user_id", user.id).maybeSingle() : Promise.resolve({ data: null, error: null }),
-    isTeacher ? supabase.from("timetable_entries").select("id, weekday, start_time, end_time, offering:course_offerings(id, section_code, subject:subjects(code, name), term:academic_terms(name))").order("weekday").order("start_time").limit(200) : Promise.resolve({ data: [], error: null }),
+    isTeacher ? supabase.from("teaching_assignments").select("offering_id").eq("teacher_user_id", user.id) : Promise.resolve({ data: [], error: null }),
     isTeacher || isAdmin ? supabase.rpc("scoped_attendance_summary") : Promise.resolve({ data: [], error: null }),
   ]);
+  const teacherOfferingIds = (teacherAssignmentsResult.data ?? []).map((assignment) => assignment.offering_id);
+  const scheduleResult = teacherAssignmentsResult.error
+    ? { data: null, error: teacherAssignmentsResult.error }
+    : isTeacher && teacherOfferingIds.length
+      ? await supabase.from("timetable_entries").select("id, weekday, start_time, end_time, offering:course_offerings(id, section_code, subject:subjects(code, name), term:academic_terms(name))").in("offering_id", teacherOfferingIds).order("weekday").order("start_time").limit(200)
+      : { data: [], error: null };
+  if (teacherAssignmentsResult.error) console.error("[attendance] teacher assignments query failed", { code: teacherAssignmentsResult.error.code, message: teacherAssignmentsResult.error.message });
   if (scheduleResult.error) {
     console.error("[attendance] assigned timetable query failed", {
       code: scheduleResult.error.code,
@@ -106,6 +116,14 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
   );
   const history = (studentHistoryResult.data ?? []) as unknown as Array<{ id: string; status: AttendanceStatus; session_date: string; subject_code: string; subject_name: string; section_code: string }>;
   const scopedSummaries = (summaryResult.data ?? []) as unknown as AttendanceSummary[];
+  const summarySections = [...new Set(scopedSummaries.map((summary) => summary.section_code))].sort();
+  const requestedSummarySection = typeof query.summarySection === "string" ? query.summarySection : "all";
+  const selectedSummarySection = summarySections.includes(requestedSummarySection) || requestedSummarySection === "all" ? requestedSummarySection : "all";
+  const sectionSummaries = scopedSummaries.filter((summary) => selectedSummarySection === "all" || summary.section_code === selectedSummarySection);
+  const summaryOfferings = [...new Map(sectionSummaries.map((summary) => [summary.offering_id, summary])).values()];
+  const requestedSummaryOffering = typeof query.summaryOffering === "string" ? query.summaryOffering : "all";
+  const selectedSummaryOffering = summaryOfferings.some((summary) => summary.offering_id === requestedSummaryOffering) ? requestedSummaryOffering : "all";
+  const visibleSummaries = sectionSummaries.filter((summary) => selectedSummaryOffering === "all" || summary.offering_id === selectedSummaryOffering);
 
   return (
     <AppShell roles={roles} displayName={displayName}>
@@ -130,7 +148,7 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
               {sessionError ? <Callout tone="danger" role="alert" className="mt-4">{sessionError}</Callout> : null}
               {selectedSchedule && selectedDayMatches && !sessionError ? (
                 <div className="mt-5 border-t border-divider pt-4">
-                  <h3 className="font-semibold">{selectedSchedule.offering.subject.code} · section {selectedSchedule.offering.section_code} · {rawDate}</h3>
+                  <h3 className="font-semibold">{selectedSchedule.offering.subject.code} · section {selectedSchedule.offering.section_code} · {formatCampusDate(rawDate)}</h3>
                   {roster.length ? <div className="mt-4"><AttendanceForm key={`${selectedSchedule.id}-${rawDate}-${roster.map((row) => row.status).join("")}`} timetableEntryId={selectedSchedule.id} sessionDate={rawDate} roster={roster} /></div> : <EmptyState title="No enrolled students" description="This offering has no students to mark for this class." />}
                 </div>
               ) : null}
@@ -160,7 +178,7 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
           <Panel title="Attendance history" description="Recorded class marks in reverse chronological order.">
             {studentHistoryResult.error ? <Callout tone="danger" role="alert">Unable to load attendance history.</Callout> : overallStudentSummary.total === 0 ? <EmptyState title="No history yet" description="There are no saved attendance marks for your record." /> : (
               <>
-                <div className="overflow-x-auto"><table className="w-full min-w-[32rem] text-left text-sm"><caption className="sr-only">Attendance history, page {historyPage}</caption><thead className="border-b border-divider text-xs uppercase text-muted-foreground"><tr><th scope="col" className="px-3 py-2">Date</th><th scope="col" className="px-3 py-2">Subject</th><th scope="col" className="px-3 py-2">Section</th><th scope="col" className="px-3 py-2">Status</th></tr></thead><tbody className="divide-y divide-divider">{history.map((item) => <tr key={item.id}><td className="px-3 py-3">{item.session_date}</td><td className="px-3 py-3">{item.subject_code} · {item.subject_name}</td><td className="px-3 py-3">{item.section_code}</td><td className="px-3 py-3"><StatusBadge status={item.status} /></td></tr>)}</tbody></table></div>
+                <div className="overflow-x-auto"><table className="w-full min-w-[32rem] text-left text-sm"><caption className="sr-only">Attendance history, page {historyPage}</caption><thead className="border-b border-divider text-xs uppercase text-muted-foreground"><tr><th scope="col" className="px-3 py-2">Date</th><th scope="col" className="px-3 py-2">Subject</th><th scope="col" className="px-3 py-2">Section</th><th scope="col" className="px-3 py-2">Status</th></tr></thead><tbody className="divide-y divide-divider">{history.map((item) => <tr key={item.id}><td className="px-3 py-3"><time dateTime={item.session_date}>{formatCampusDate(item.session_date)}</time></td><td className="px-3 py-3">{item.subject_code} · {item.subject_name}</td><td className="px-3 py-3">{item.section_code}</td><td className="px-3 py-3"><StatusBadge status={item.status} /></td></tr>)}</tbody></table></div>
                 <nav aria-label="Attendance history pages" className="mt-4 flex items-center justify-between border-t border-divider pt-3">
                   <span className="text-sm text-muted-foreground">Page {historyPage} of {Math.max(1, Math.ceil(overallStudentSummary.total / historyPageSize))}</span>
                   {historyPage > 1 ? <Link href={`/attendance?page=${historyPage - 1}`} className="min-h-11 px-3 py-2 text-sm font-medium text-primary-text hover:underline">Previous</Link> : <span />}
@@ -175,7 +193,18 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
       {isTeacher || isAdmin ? (
         <Panel title={isAdmin ? "Institution attendance report" : "My offering summaries"} description="Counts include saved attendance marks only; unrecorded classes are not treated as absences.">
           {summaryResult.error ? <Callout tone="danger" role="alert">Unable to load scoped attendance summaries.</Callout> : scopedSummaries.length === 0 ? <EmptyState title="No attendance marks yet" description="Summaries appear after teachers save attendance for a class." /> : (
-            <ul className="divide-y divide-divider">{scopedSummaries.map((summary) => <li key={summary.offering_id} className="py-3"><p className="font-medium">{summary.subject_code} · section {summary.section_code}</p><p className="text-sm text-muted-foreground">{summary.recorded_marks ?? 0} marks · {summary.present_count} present · {summary.absent_count} absent · {summary.late_count} late</p>{isTeacher ? <Link href={`/attendance?offering=${summary.offering_id}`} className="text-sm font-medium text-primary-text underline-offset-4 hover:underline">View class roster summary</Link> : null}</li>)}</ul>
+            <>
+              {isAdmin ? <form method="get" action="/attendance" className="mb-4 grid gap-3 border-b border-divider pb-4 sm:grid-cols-[minmax(10rem,1fr)_minmax(14rem,2fr)_auto] sm:items-end">
+                <label className="text-sm font-medium">Section
+                  <select name="summarySection" defaultValue={selectedSummarySection} className="mt-1 min-h-11 w-full rounded-lg border border-input-border px-3 text-sm"><option value="all">All sections</option>{summarySections.map((section) => <option key={section} value={section}>{section}</option>)}</select>
+                </label>
+                <label className="text-sm font-medium">Offering
+                  <select name="summaryOffering" defaultValue={selectedSummaryOffering} className="mt-1 min-h-11 w-full rounded-lg border border-input-border px-3 text-sm"><option value="all">All offerings in section</option>{summaryOfferings.map((summary) => <option key={summary.offering_id} value={summary.offering_id}>{summary.subject_code} · section {summary.section_code}</option>)}</select>
+                </label>
+                <button type="submit" className="min-h-11 rounded-lg border border-border px-4 text-sm font-semibold hover:bg-muted">Filter report</button>
+              </form> : null}
+              {visibleSummaries.length ? <ul className="divide-y divide-divider">{visibleSummaries.map((summary) => <li key={summary.offering_id} className="py-3"><p className="font-medium">{summary.subject_code} · section {summary.section_code}</p><p className="text-sm text-muted-foreground">{summary.recorded_marks ?? 0} marks · {summary.present_count} present · {summary.absent_count} absent · {summary.late_count} late</p>{isTeacher ? <Link href={`/attendance?offering=${summary.offering_id}`} className="text-sm font-medium text-primary-text underline-offset-4 hover:underline">View class roster summary</Link> : null}</li>)}</ul> : <EmptyState title="No marks match these filters" description="Choose another section or offering to view recorded attendance." />}
+            </>
           )}
           {isTeacher ? (
             <div className="mt-4 border-t border-divider pt-4">

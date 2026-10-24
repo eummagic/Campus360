@@ -11,6 +11,18 @@ import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
+function describeDatabaseError(error: unknown) {
+  const value = error && typeof error === "object" ? error as Record<string, unknown> : {};
+  const stringField = (field: string) => typeof value[field] === "string" ? value[field] as string : null;
+  return {
+    name: stringField("name") ?? (error instanceof Error ? error.name : "DatabaseError"),
+    code: stringField("code"),
+    message: stringField("message") ?? (error instanceof Error ? error.message : String(error)),
+    details: stringField("details"),
+    hint: stringField("hint"),
+  };
+}
+
 function shiftMonth(value: string, delta: number) {
   const [year, month] = value.split("-").map(Number);
   const date = new Date(Date.UTC(year, month - 1 + delta, 1));
@@ -35,7 +47,7 @@ function EventLink({ event }: { event: CalendarEvent }) {
 export default async function CalendarPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { roles, displayName } = await requireUserWithProfile();
   if (!roles.some(({ role }) => role === "admin" || role === "teacher" || role === "student")) redirect("/dashboard");
-  const isTeacher = hasRole(roles, "teacher");
+  const audience = hasRole(roles, "admin") ? "admin" : hasRole(roles, "teacher") ? "teacher" : "student";
   const requestedMonth = (await searchParams).month;
   const month = normalizeMonth(typeof requestedMonth === "string" ? requestedMonth : undefined);
   const [year, monthNumber] = month.split("-").map(Number);
@@ -44,15 +56,17 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const supabase = await createClient();
   const [scheduleResult, assignmentResult] = await Promise.all([
     supabase.from("timetable_entries")
-      .select("id, weekday, start_time, end_time, location, term:academic_terms(name, status, starts_on, ends_on), offering:course_offerings(id, section_code, subject:subjects(code, name))")
+      .select("id, weekday, start_time, end_time, location, offering:course_offerings(id, section_code, term:academic_terms(name, status, starts_on, ends_on), subject:subjects(code, name))")
       .limit(500),
     supabase.from("assignments")
       .select("id, title, due_at, status, offering:course_offerings(section_code, subject:subjects(code))")
       .eq("status", "published").gte("due_at", `${monthStart}T00:00:00Z`).lt("due_at", `${nextMonthStart}T00:00:00Z`).order("due_at").limit(500),
   ]);
+  if (scheduleResult.error) console.error("[calendar] schedule query failed", describeDatabaseError(scheduleResult.error));
+  if (assignmentResult.error) console.error("[calendar] assignment query failed", describeDatabaseError(assignmentResult.error));
   const schedules = (scheduleResult.data ?? []) as unknown as CalendarSchedule[];
   const assignments = (assignmentResult.data ?? []) as unknown as Array<{ id: string; title: string; due_at: string; status: string; offering: { section_code: string; subject: { code: string } } }>;
-  const events = [...buildScheduleEvents(schedules, month, isTeacher), ...buildAssignmentEvents(assignments)].sort((a, b) => a.date.localeCompare(b.date) || (a.time ?? "99:99").localeCompare(b.time ?? "99:99"));
+  const events = [...buildScheduleEvents(schedules, month, audience), ...buildAssignmentEvents(assignments)].sort((a, b) => a.date.localeCompare(b.date) || (a.time ?? "99:99").localeCompare(b.time ?? "99:99"));
   const eventsByDate = new Map<string, CalendarEvent[]>();
   for (const event of events) eventsByDate.set(event.date, [...(eventsByDate.get(event.date) ?? []), event]);
   const dates = monthDates(month);

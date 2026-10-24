@@ -3,8 +3,7 @@ import { buildAssignmentEvents, buildScheduleEvents, monthDates, normalizeMonth,
 
 const schedule: CalendarSchedule = {
   id: "entry-1", weekday: 1, start_time: "09:00:00", end_time: "10:00:00", location: "Room 2",
-  term: { name: "Fall", status: "active", starts_on: "2026-08-01", ends_on: "2026-08-31" },
-  offering: { id: "offering-1", section_code: "A", subject: { code: "CS101", name: "Data Structures" } },
+  offering: { id: "offering-1", section_code: "A", term: { name: "Fall", status: "active", starts_on: "2026-08-01", ends_on: "2026-08-31" }, subject: { code: "CS101", name: "Data Structures" } },
 };
 
 describe("calendar event construction", () => {
@@ -15,9 +14,11 @@ describe("calendar event construction", () => {
   });
 
   it("creates recurring events only within the active term and uses role-appropriate links", () => {
-    const events = buildScheduleEvents([schedule, { ...schedule, id: "closed", term: { ...schedule.term, status: "closed" } }], "2026-08", true);
+    const events = buildScheduleEvents([schedule, { ...schedule, id: "closed", offering: { ...schedule.offering, term: { ...schedule.offering.term, status: "closed" } } }], "2026-08", "teacher");
     expect(events).toHaveLength(5);
     expect(events[0]).toMatchObject({ date: "2026-08-03", kind: "class", href: "/attendance?entry=entry-1&date=2026-08-03" });
+    expect(buildScheduleEvents([schedule], "2026-08", "student")[0]?.href).toBe("/subjects/offering-1");
+    expect(buildScheduleEvents([schedule], "2026-08", "admin")[0]?.href).toBe("/timetable?section=A");
   });
 
   it("includes published assignment deadlines only", () => {

@@ -27,6 +27,7 @@ type SubjectSpec = { code: string; name: string; credits: number | null };
 type ScheduleSpec = { subjectCode: string; weekday: number; start: string; end: string };
 type FixtureAccount = { email: string; displayName: string; role: "student" | "teacher"; section?: (typeof SECTIONS)[number]; index?: number };
 type AcademicOffering = { id: string; subject_id: string; term_id: string; section_code: string; subjectCode: string };
+export type SyntheticAssignment = { id: string; offeringId: string; sectionCode: string; teacherId: string | undefined; title: string; instructions: string; dueAt: string; status: "draft" | "published" };
 type Entry = { id: string; offeringId: string; teacherId: string; section: (typeof SECTIONS)[number]; weekday: number; start: string; end: string; location: string };
 type Mark = { id: string; sessionId: string; offeringId: string; studentRecordId: string; status: "present" | "absent" | "late"; legacyStatus: "present" | "absent" | "late"; teacherId: string };
 
@@ -61,6 +62,31 @@ export const WEEKLY_SCHEDULE: readonly ScheduleSpec[] = [
   { subjectCode: "CS104", weekday: 5, start: "11:30", end: "12:30" },
   { subjectCode: "CS105", weekday: 5, start: "13:30", end: "14:30" },
 ];
+
+const ASSIGNMENT_TEMPLATES = [
+  { slug: "problem-set-1", title: "Problem Set 1", instructions: "Solve the assigned problems and show the reasoning behind each answer.", dueAt: "2026-10-30T23:59:00.000Z", status: "published" as const },
+  { slug: "implementation-project", title: "Implementation Project", instructions: "Submit a working implementation with a short explanation of the design choices and test cases.", dueAt: "2026-11-20T23:59:00.000Z", status: "published" as const },
+  { slug: "review-exercises", title: "Review Exercises", instructions: "Use these exercises to review the term's core concepts. This item is a draft and is not visible to students.", dueAt: "2026-12-05T23:59:00.000Z", status: "draft" as const },
+] as const;
+
+export function makeSyntheticAssignments(
+  offerings: readonly AcademicOffering[],
+  teachersBySection: ReadonlyMap<string, string>,
+): SyntheticAssignment[] {
+  return offerings.flatMap((offering) => {
+    const teacherId = teachersBySection.get(offering.section_code);
+    return ASSIGNMENT_TEMPLATES.map((template) => ({
+      id: uuidFromName(`assignment:${offering.id}:${template.slug}`),
+      offeringId: offering.id,
+      sectionCode: offering.section_code,
+      teacherId,
+      title: `${offering.subjectCode}: ${template.title}`,
+      instructions: template.instructions,
+      dueAt: template.dueAt,
+      status: template.status,
+    }));
+  });
+}
 
 export function stableSyntheticUuid(name: string): string {
   const namespace = Buffer.from(UUID_NAMESPACE.replaceAll("-", ""), "hex");
@@ -269,6 +295,25 @@ async function preflight(client: SupabaseClient, accountSpecs: FixtureAccount[],
     }
   }
 
+  const syntheticTeachersBySection = new Map(SECTIONS.flatMap((section) => {
+    const teacher = accountSpecs.find((spec) => spec.role === "teacher" && spec.section === section)!;
+    const existing = markerUsers.get(teacher.email);
+    return existing ? [[section, existing.id] as const] : [];
+  }));
+  const expectedAssignments = makeSyntheticAssignments(offerings, syntheticTeachersBySection);
+  const assignmentResult = await client.from("assignments")
+    .select("id,offering_id,title,instructions,due_at,status,created_by")
+    .in("id", expectedAssignments.map(({ id }) => id));
+  const existingAssignments = await assertNoQueryError(assignmentResult, "synthetic assignments");
+  for (const existing of existingAssignments) {
+    const expected = expectedAssignments.find((assignment) => assignment.id === existing.id);
+    if (!expected || expected.teacherId !== existing.created_by || expected.offeringId !== existing.offering_id
+      || expected.title !== existing.title || expected.instructions !== existing.instructions
+      || Date.parse(expected.dueAt) !== Date.parse(existing.due_at) || expected.status !== existing.status) {
+      throw new Error("A synthetic assignment identity is already in use or has been manually changed; no data changes were made.");
+    }
+  }
+
   const registrationNumbers = accountSpecs.filter((spec) => spec.role === "student").map((spec) => `DEMO-S5-${spec.section!.slice(-1)}-${String(spec.index).padStart(3, "0")}`);
   const accountIds = [...markerUsers.values()].map(({ id }) => id);
   const recordQuery = client.from("student_records").select("id,user_id,registration_number,program_id,status");
@@ -300,7 +345,7 @@ async function preflight(client: SupabaseClient, accountSpecs: FixtureAccount[],
       existingRoles.set(role.user_id, [...(existingRoles.get(role.user_id) ?? []), role]);
     }
   }
-  return { department, program, term, today, startDate, subjectMap, offerings, existingOfferings, existingRecords, existingSchedule, markerUsers, existingProfiles, existingRoles };
+  return { department, program, term, today, startDate, subjectMap, offerings, existingOfferings, existingRecords, existingSchedule, existingAssignments, markerUsers, existingProfiles, existingRoles };
 }
 
 async function provisionAccounts(admin: SupabaseClient, accountSpecs: FixtureAccount[], markerUsers: Map<string, User>, profiles: Map<string, { id: string; display_name: string; contact_email: string | null }>, roles: Map<string, Array<{ user_id: string; role: string; scope: string | null }>>, syntheticPassword: string | undefined): Promise<Map<string, User>> {
@@ -423,11 +468,12 @@ function makeDatabaseSql(args: {
     const teacher = accountSpecs.find((spec) => spec.role === "teacher" && spec.section === section)!;
     return [section, users.get(teacher.email)!.id] as const;
   }));
-  const assignmentRows = offerings.map((offering) => getSqlValueTuple([
+  const syntheticAssignments = makeSyntheticAssignments(offerings, teacherBySection);
+  const teachingAssignmentRows = offerings.map((offering) => getSqlValueTuple([
     teacherBySection.get(offering.section_code as (typeof SECTIONS)[number])!, offering.id,
   ], ["uuid", "uuid"]));
-  statements.push(`insert into public.teaching_assignments (teacher_user_id, offering_id) values ${assignmentRows.join(",\n")} on conflict (teacher_user_id, offering_id) do nothing;`);
-  statements.push(`if exists (select 1 from (values ${assignmentRows.join(",\n")}) expected(teacher_user_id, offering_id)
+  statements.push(`insert into public.teaching_assignments (teacher_user_id, offering_id) values ${teachingAssignmentRows.join(",\n")} on conflict (teacher_user_id, offering_id) do nothing;`);
+  statements.push(`if exists (select 1 from (values ${teachingAssignmentRows.join(",\n")}) expected(teacher_user_id, offering_id)
       left join public.teaching_assignments actual using (teacher_user_id, offering_id)
       where actual.offering_id is null) then raise exception 'Synthetic teaching assignment verification failed'; end if;`);
 
@@ -491,6 +537,16 @@ function makeDatabaseSql(args: {
   for (const section of SECTIONS) {
     const teacherId = teacherBySection.get(section)!;
     statements.push(`perform set_config('request.jwt.claims', ${jsonSql({ sub: teacherId, role: "authenticated" })}, true);`);
+    const sectionAssignments = syntheticAssignments.filter((assignment) => assignment.sectionCode === section);
+    const assignmentRows = sectionAssignments.map((assignment) => {
+      if (!assignment.teacherId) throw new Error(`No synthetic teacher is assigned to section ${section}.`);
+      return getSqlValueTuple([
+        assignment.id, assignment.offeringId, assignment.title, assignment.instructions,
+        assignment.dueAt, assignment.status, assignment.teacherId,
+      ], ["uuid", "uuid", "text", "text", "timestamptz", "text", "uuid"]);
+    });
+    statements.push(`insert into public.assignments (id, offering_id, title, instructions, due_at, status, created_by) values ${assignmentRows.join(",\n")} on conflict (id) do nothing;`);
+    statements.push(assertExpectedRows("public.assignments", ["id", "offering_id", "title", "instructions", "due_at", "status", "created_by"], assignmentRows, "id", "Synthetic assignment conflicts with a different or manually changed row."));
     const sessions = sessionsBySection.get(section)!;
     const sessionRows = sessions.map(({ id, entry, date }) => getSqlValueTuple([id, entry.id, entry.offeringId, date, teacherId], ["uuid", "uuid", "uuid", "date", "uuid"]));
     if (sessionRows.length) statements.push(`insert into public.attendance_sessions (id, timetable_entry_id, offering_id, session_date, created_by) values ${sessionRows.join(",\n")} on conflict (id) do nothing;`);
@@ -515,6 +571,7 @@ function makeDatabaseSql(args: {
   statements.push(`if (select count(*) from public.student_records where registration_number like 'DEMO-S5-%') <> 120 then raise exception 'Synthetic student record count does not match the expected 120'; end if;`);
   statements.push(`if (select count(*) from public.course_offerings where term_id = ${quote(termId)} and section_code in ('S5-A','S5-B','S5-C','S5-D') and subject_id in (${SUBJECTS.map((subject) => quote(subjectMap.get(subject.code)!.id)).join(",")})) <> 24 then raise exception 'Synthetic offering count does not match the expected 24'; end if;`);
   statements.push(`if (select count(*) from public.timetable_entries where term_id = ${quote(termId)} and id in (${entries.map((entry) => quote(entry.id)).join(",")})) <> 72 then raise exception 'Synthetic timetable count does not match the expected 72'; end if;`);
+  statements.push(`if (select count(*) from public.assignments where id in (${syntheticAssignments.map(({ id }) => quote(id)).join(",")})) <> ${syntheticAssignments.length} then raise exception 'Synthetic assignment count does not match the expected ${syntheticAssignments.length}'; end if;`);
   statements.push(`if (select count(*) from public.attendance_sessions where id in (${[...sessionsBySection.values()].flat().map(({ id }) => quote(id)).join(",")})) <> ${[...sessionsBySection.values()].flat().length} then raise exception 'Synthetic attendance session count verification failed'; end if;`);
   statements.push(`if (select count(*) from public.attendance_records where id in (${[...marksBySection.values()].flat().map(({ id }) => quote(id)).join(",")})) <> ${Object.values(expectedMarkCounts).reduce((sum, count) => sum + count, 0)} then raise exception 'Synthetic attendance mark count verification failed'; end if;`);
   return { sql: `DO $campus360$ BEGIN\n${statements.join("\n\n")}\nEND $campus360$;`, expectedMarkCounts };
@@ -599,7 +656,7 @@ async function main(): Promise<void> {
   }));
   console.log(`Local synthetic fixture complete for ${snapshot.startDate} through ${snapshot.today}.`);
   console.log(`Auth users: ${createdStudents + createdTeachers} created (${createdStudents} students, ${createdTeachers} teachers); ${accounts.length - createdStudents - createdTeachers} generator-owned accounts reused.`);
-  console.log(`Student records: 120; sections: ${SECTIONS.map((section, index) => `${section}=${rosterCounts[index]}`).join(", ")}; offerings: 24; enrolments: 720; timetable entries: 72.`);
+  console.log(`Student records: 120; sections: ${SECTIONS.map((section, index) => `${section}=${rosterCounts[index]}`).join(", ")}; offerings: 24; enrolments: 720; timetable entries: 72; assignments: 72 (48 published, 24 draft).`);
   console.log(`Attendance sessions: ${[...WEEKLY_SCHEDULE].length * 4 * 8} planned per complete 8-week term window; marks by status: ${JSON.stringify(sql.expectedMarkCounts)}.`);
   console.log("Existing seed accounts, unrelated records, and generator-owned rows on repeat runs are preserved; the SQL phase commits atomically.");
 }

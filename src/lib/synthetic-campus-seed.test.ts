@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { stableSyntheticUuid, syntheticAttendanceStatus, WEEKLY_SCHEDULE } from "../../scripts/seed-synthetic-campus";
+import { makeSyntheticAssignments, stableSyntheticUuid, syntheticAttendanceStatus, WEEKLY_SCHEDULE } from "../../scripts/seed-synthetic-campus";
 
 describe("synthetic Campus360 schedule fixture", () => {
   it("uses a stable version-5 UUID namespace for deterministic records", () => {
@@ -40,5 +40,30 @@ describe("synthetic Campus360 schedule fixture", () => {
     expect(presentRate(8)).toBeLessThan(0.67);
     expect(presentRate(10)).toBeGreaterThan(0.37);
     expect(presentRate(10)).toBeLessThan(0.47);
+  });
+});
+
+describe("synthetic Campus360 assignments", () => {
+  it("creates three stable assignments per offering with published and draft states", () => {
+    const offerings = Array.from({ length: 24 }, (_, index) => ({
+      id: `offering-${index}`,
+      subject_id: `subject-${index % 6}`,
+      term_id: "term-2026-fall",
+      section_code: `S5-${String.fromCharCode(65 + Math.floor(index / 6))}`,
+      subjectCode: `CS10${(index % 6) + 1}`,
+    }));
+    const teachers = new Map(["S5-A", "S5-B", "S5-C", "S5-D"].map((section) => [section, `teacher-${section}`]));
+    const assignments = makeSyntheticAssignments(offerings, teachers);
+
+    expect(assignments).toHaveLength(72);
+    expect(assignments.filter((assignment) => assignment.status === "published")).toHaveLength(48);
+    expect(assignments.filter((assignment) => assignment.status === "draft")).toHaveLength(24);
+    expect(new Set(assignments.map((assignment) => assignment.id)).size).toBe(72);
+    expect(makeSyntheticAssignments(offerings, teachers)).toEqual(assignments);
+    for (const offering of offerings) {
+      const offeringAssignments = assignments.filter((assignment) => assignment.offeringId === offering.id);
+      expect(offeringAssignments).toHaveLength(3);
+      expect(offeringAssignments.every((assignment) => assignment.teacherId === teachers.get(offering.section_code))).toBe(true);
+    }
   });
 });

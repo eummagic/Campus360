@@ -5,6 +5,7 @@ import { AppNavigation } from "@/components/app-navigation";
 import { signOut } from "@/app/profile/actions";
 import { LogOut } from "lucide-react";
 import { SkipLink } from "@/components/ui/skip-link";
+import { CampusAssistant } from "@/components/campus-assistant";
 
 const roleLabels: Record<AppRole["role"], string> = {
   student: "Student",
@@ -49,6 +50,7 @@ export async function AppShell({
         }
       />
       <main id="main-content" tabIndex={-1} className="mx-auto w-full max-w-[1280px] min-w-0 space-y-6 px-4 py-6 outline-none sm:px-6 sm:py-8 lg:px-8">{children}</main>
+      <CampusAssistant roles={roles.map(({ role }) => role)} />
     </div>
   );
 }

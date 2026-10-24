@@ -92,7 +92,7 @@ reset role;
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"80000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-select results_eq('select count(*)::int from public.scoped_attendance_summary()', ARRAY[1], 'admin sees institution-level offering summaries');
+select results_eq('select count(*)::int from public.scoped_attendance_summary() where offering_id = ''85000000-0000-0000-0000-000000000001''', ARRAY[1], 'admin sees the test offering in institution-level summaries');
 select results_eq('select count(*)::int from public.offering_attendance_by_student(''85000000-0000-0000-0000-000000000001'')', ARRAY[2], 'admin can view offering roster attendance counts');
 select lives_ok($$update public.attendance_records set status = 'present' where student_record_id = '86000000-0000-0000-0000-000000000001'$$, 'admin attendance update statement is safely scoped by RLS');
 select results_eq('select status from public.attendance_records where student_record_id = ''86000000-0000-0000-0000-000000000001''', ARRAY['late'], 'admin report access does not grant attendance mutation');
