@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from "react";
+import { useId, type CSSProperties, type ReactNode } from "react";
 
 export function Panel({
   title,
@@ -9,6 +9,7 @@ export function Panel({
   className = "",
   id,
   ariaLabel,
+  style,
 }: {
   title?: ReactNode;
   description?: ReactNode;
@@ -18,6 +19,7 @@ export function Panel({
   className?: string;
   id?: string;
   ariaLabel?: string;
+  style?: CSSProperties;
 }) {
   const generatedId = useId();
   const headingId = title ? `${id ?? generatedId}-heading` : undefined;
@@ -27,6 +29,7 @@ export function Panel({
       id={id}
       aria-labelledby={headingId}
       aria-label={ariaLabel}
+      style={style}
       className={`min-w-0 rounded-xl border border-border bg-card p-4 shadow-sm dark:shadow-none sm:p-5 ${className}`}
     >
       {title || description || actions ? (

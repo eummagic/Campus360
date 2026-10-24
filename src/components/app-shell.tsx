@@ -26,6 +26,7 @@ export async function AppShell({
   const initialTheme = (await cookies()).get("campus360-theme")?.value === "light" ? "light" : "dark";
   const staff = isStaff(roles);
   const admin = hasRole(roles, "admin");
+  const canUseCampusFeatures = roles.some(({ role }) => role === "admin" || role === "teacher" || role === "student");
   const visibleRoleLabels = [...new Set(roles.map(({ role }) => roleLabels[role]))];
 
   return (
@@ -34,6 +35,7 @@ export async function AppShell({
       <AppNavigation
         isStaff={staff}
         isAdmin={admin}
+        canUseCampusFeatures={canUseCampusFeatures}
         displayName={displayName}
         initialTheme={initialTheme}
         roleLabels={visibleRoleLabels}

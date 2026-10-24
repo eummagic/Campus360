@@ -16,6 +16,7 @@
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
     "db:seed:users": "node --env-file=.env.local --import tsx scripts/seed-users.ts",
+    "db:seed:synthetic": "node --env-file=.env.local --import tsx scripts/seed-synthetic-campus.ts",
     "db:test": "supabase test db"
   },
   "dependencies": {

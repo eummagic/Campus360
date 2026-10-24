@@ -5,8 +5,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BookOpenCheck,
+  Calendar,
+  CalendarDays,
+  ClipboardCheck,
   GraduationCap,
   LayoutDashboard,
+  ListTodo,
   Menu,
   UserPlus,
   UserRound,
@@ -21,6 +25,7 @@ type NavItem = { href: string; label: string; icon: LucideIcon; match: (path: st
 export function AppNavigation({
   isStaff,
   isAdmin,
+  canUseCampusFeatures,
   displayName,
   initialTheme,
   roleLabels,
@@ -28,6 +33,7 @@ export function AppNavigation({
 }: {
   isStaff: boolean;
   isAdmin: boolean;
+  canUseCampusFeatures: boolean;
   displayName: string;
   initialTheme: "dark" | "light";
   roleLabels: string[];
@@ -45,6 +51,12 @@ export function AppNavigation({
       title: "Workspace",
       items: [
         { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, match: (path) => path === "/dashboard" },
+        ...(canUseCampusFeatures ? [
+          { href: "/timetable", label: "Timetable", icon: CalendarDays, match: (path: string) => path.startsWith("/timetable") },
+          { href: "/attendance", label: "Attendance", icon: ClipboardCheck, match: (path: string) => path.startsWith("/attendance") },
+          { href: "/assignments", label: "Assignments", icon: ListTodo, match: (path: string) => path.startsWith("/assignments") },
+          { href: "/calendar", label: "Calendar", icon: Calendar, match: (path: string) => path.startsWith("/calendar") },
+        ] : []),
         ...(isStaff ? [{ href: "/directory", label: "Student Directory", icon: UsersRound, match: (path: string) => path.startsWith("/directory") }] : []),
         ...(isAdmin ? [{ href: "/admin/students/new", label: "Create Student Record", icon: UserPlus, match: (path: string) => path.startsWith("/admin/students") }] : []),
       ],

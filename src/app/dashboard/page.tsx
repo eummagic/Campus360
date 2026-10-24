@@ -144,6 +144,12 @@ export default async function DashboardPage() {
   const quickActions = [
     ...(ownRecord ? [{ href: `/directory/${ownRecord.student_record_id}`, label: "My academic record", detail: "Review your program and enrolled offerings." }] : []),
     ...(isStaff(roles) ? [{ href: "/directory", label: "Student directory", detail: "Open students within your authorized scope." }] : []),
+    ...((isStudent || isTeacher || isAdmin) ? [
+      { href: "/timetable", label: "Class timetable", detail: "View scheduled classes for your offerings." },
+      { href: "/attendance", label: "Attendance", detail: "View history or record marks for an assigned class." },
+      { href: "/assignments", label: "Assignments", detail: isStudent ? "See published work for enrolled offerings." : "View or manage assignments in your authorized scope." },
+      { href: "/calendar", label: "Academic calendar", detail: "See class times and published deadlines." },
+    ] : []),
     ...(isAdmin ? [
       { href: "/admin/academics", label: "Academic structure", detail: "Review departments, programs, and offerings." },
       { href: "/admin/students/new", label: "Create student record", detail: "Link an existing student account." },

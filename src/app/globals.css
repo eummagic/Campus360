@@ -31,6 +31,14 @@
   --neutral: 217 24% 81%;
   --neutral-soft: 223 29% 24%;
   --muted-foreground: 219 25% 75%;
+  --subject-0: 199 82% 68%;
+  --subject-1: 154 62% 62%;
+  --subject-2: 39 91% 67%;
+  --subject-3: 278 77% 75%;
+  --subject-4: 336 76% 70%;
+  --subject-5: 181 67% 63%;
+  --subject-6: 23 88% 67%;
+  --subject-7: 226 82% 73%;
 }
 
 .light {
@@ -62,6 +70,14 @@
   --neutral: 215 19% 35%;
   --neutral-soft: 213 31% 93%;
   --muted-foreground: 215 16% 42%;
+  --subject-0: 199 80% 35%;
+  --subject-1: 154 68% 29%;
+  --subject-2: 34 90% 34%;
+  --subject-3: 278 66% 42%;
+  --subject-4: 336 68% 40%;
+  --subject-5: 181 73% 29%;
+  --subject-6: 23 81% 39%;
+  --subject-7: 226 75% 43%;
 }
 
 body {

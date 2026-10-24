@@ -1,11 +1,19 @@
 const statusClasses: Record<string, string> = {
   active: "bg-success-soft text-success",
+  present: "bg-success-soft text-success",
+  published: "bg-success-soft text-success",
   graduated: "bg-info-soft text-info",
+  upcoming: "bg-info-soft text-info",
   inactive: "bg-neutral-soft text-neutral",
   archived: "bg-neutral-soft text-neutral",
   closed: "bg-neutral-soft text-neutral",
   planned: "bg-neutral-soft text-neutral",
   pending: "bg-warning-soft text-warning",
+  late: "bg-warning-soft text-warning",
+  "due-soon": "bg-warning-soft text-warning",
+  absent: "bg-danger-soft text-danger",
+  "past-due": "bg-danger-soft text-danger",
+  draft: "bg-neutral-soft text-neutral",
 };
 
 export function StatusBadge({ status }: { status: string }) {

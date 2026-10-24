@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { Callout } from "@/components/ui/callout";
@@ -52,8 +53,8 @@ export default async function DirectoryDetailPage({
           ) : (
             <ul className="divide-y divide-divider text-sm">
               {rows.map((row) => {
-                const enrolment = row as unknown as { id: string; offering: { section_code: string; subject: { code: string; name: string }; term: { name: string } } };
-                return <li key={enrolment.id} className="py-3 first:pt-0"><span className="font-mono font-medium">{enrolment.offering.subject.code}</span> {enrolment.offering.subject.name}<span className="text-muted-foreground"> — section {enrolment.offering.section_code} — {enrolment.offering.term.name}</span></li>;
+                const enrolment = row as unknown as { id: string; offering: { id: string; section_code: string; subject: { code: string; name: string }; term: { name: string } } };
+                return <li key={enrolment.id} className="py-3 first:pt-0"><Link href={`/subjects/${enrolment.offering.id}`} className="font-mono font-medium text-primary-text underline-offset-4 hover:underline">{enrolment.offering.subject.code}</Link> {enrolment.offering.subject.name}<span className="text-muted-foreground"> — section {enrolment.offering.section_code} — {enrolment.offering.term.name}</span></li>;
               })}
             </ul>
           )}
