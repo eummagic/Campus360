@@ -33,8 +33,8 @@ export function CreateStudentForm({
           {programs.map((program) => <option key={program.id} value={program.id}>{program.code} — {program.name}</option>)}
         </select>
       </div>
-      {state?.ok ? <p role="status" className="text-sm text-green-700">Student record created.</p> : null}
-      {state && !state.ok ? <p role="alert" className="text-sm text-red-600">{state.message}</p> : null}
+      {state?.ok ? <p role="status" className="text-sm text-success">Student record created.</p> : null}
+      {state && !state.ok ? <p role="alert" className="text-sm text-danger">{state.message}</p> : null}
       <button type="submit" disabled={pending} className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">
         {pending ? "Creating…" : "Create record"}
       </button>

@@ -1,6 +1,10 @@
 import { notFound, redirect } from "next/navigation";
-import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
+import { Breadcrumbs } from "@/components/ui/breadcrumbs";
+import { Callout } from "@/components/ui/callout";
+import { PageHeader } from "@/components/ui/page-header";
+import { Panel } from "@/components/ui/panel";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { hasRole, isStaff, requireUserWithProfile } from "@/lib/auth";
 import { getDirectoryEntry, listEnrolmentsForRecord } from "@/lib/academics";
 
@@ -18,36 +22,43 @@ export default async function DirectoryDetailPage({
   if (!isStaff(roles) && row.user_id !== user.id) redirect("/dashboard");
 
   const { rows, error: enrolmentError } = await listEnrolmentsForRecord(id);
+  const isAdmin = hasRole(roles, "admin");
+  const isTeacher = hasRole(roles, "teacher");
+  const breadcrumbs = isStaff(roles)
+    ? [{ label: "Student directory", href: "/directory" }, { label: row.display_name }]
+    : [{ label: "Dashboard", href: "/dashboard" }, { label: "My record" }];
+  const enrolmentTitle = isAdmin ? "Enrolments" : isTeacher ? "Enrolments in your offerings" : "My enrolments";
+
   return (
     <AppShell roles={roles} displayName={displayName}>
       <div className="w-full max-w-4xl space-y-6">
-      <header>
-        <Link href="/directory" className="text-sm font-medium text-primary underline-offset-4 hover:underline">← Back to directory</Link>
-        <p className="mt-5 text-sm font-semibold uppercase tracking-wider text-primary">Student record</p>
-        <h1 className="mt-1 text-3xl font-bold tracking-tight">{row.display_name}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{row.registration_number} · {row.program_code}</p>
-      </header>
-      <section className="rounded-xl border bg-card p-5 shadow-sm">
-        <h2 className="text-lg font-semibold">Record details</h2>
-        <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="rounded-lg bg-muted/50 p-3"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Program</dt><dd className="mt-1">{row.program_name}</dd></div>
-          <div className="rounded-lg bg-muted/50 p-3"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Department</dt><dd className="mt-1">{row.department_name}</dd></div>
-          <div className="rounded-lg bg-muted/50 p-3"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Status</dt><dd className="mt-1 capitalize">{row.record_status}</dd></div>
-          <div className="rounded-lg bg-muted/50 p-3"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Contact email</dt><dd className="mt-1">{row.contact_email ?? "—"}</dd></div>
-        </dl>
-      </section>
-      <section className="rounded-xl border bg-card p-5 shadow-sm">
-        <h2 className="text-lg font-semibold">Enrolments</h2>
-        {enrolmentError ? <p role="alert" className="text-sm text-red-600">Unable to load enrolments.</p> : rows.length === 0 ? <p className="text-sm text-muted-foreground">No enrolments yet.</p> : (
-          <ul className="mt-3 divide-y text-sm">
-            {rows.map((row) => {
-              const enrolment = row as unknown as { id: string; offering: { section_code: string; subject: { code: string; name: string }; term: { name: string } } };
-              return <li key={enrolment.id} className="py-3 first:pt-0">{enrolment.offering.subject.code} {enrolment.offering.subject.name}<span className="text-muted-foreground"> — section {enrolment.offering.section_code} — {enrolment.offering.term.name}</span></li>;
-            })}
-          </ul>
-        )}
-      </section>
-      {hasRole(roles, "admin") ? <p className="text-xs text-muted-foreground">Administrative mutations for this record are not exposed in Phase 2A.</p> : null}
+        <div>
+          <Breadcrumbs items={breadcrumbs} />
+          <PageHeader eyebrow="Student record" title={row.display_name} description={`${row.registration_number} · ${row.program_code}`} actions={<StatusBadge status={row.record_status} />} />
+        </div>
+
+        <Panel title="Record details">
+          <dl className="grid divide-y divide-divider text-sm sm:grid-cols-2 sm:divide-y-0">
+            <div className="py-3 sm:border-b sm:border-divider sm:px-3"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Program</dt><dd className="mt-1 font-medium">{row.program_name}</dd></div>
+            <div className="py-3 sm:border-b sm:border-divider sm:px-3"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Department</dt><dd className="mt-1 font-medium">{row.department_name}</dd></div>
+            <div className="py-3 sm:px-3"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Status</dt><dd className="mt-1"><StatusBadge status={row.record_status} /></dd></div>
+            <div className="py-3 sm:px-3"><dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Contact email</dt><dd className="mt-1">{row.contact_email ?? "Not provided"}</dd></div>
+          </dl>
+        </Panel>
+
+        <Panel title={enrolmentTitle}>
+          {enrolmentError ? <Callout tone="danger" role="alert">Unable to load enrolments.</Callout> : rows.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No enrolments yet.</p>
+          ) : (
+            <ul className="divide-y divide-divider text-sm">
+              {rows.map((row) => {
+                const enrolment = row as unknown as { id: string; offering: { section_code: string; subject: { code: string; name: string }; term: { name: string } } };
+                return <li key={enrolment.id} className="py-3 first:pt-0"><span className="font-mono font-medium">{enrolment.offering.subject.code}</span> {enrolment.offering.subject.name}<span className="text-muted-foreground"> — section {enrolment.offering.section_code} — {enrolment.offering.term.name}</span></li>;
+              })}
+            </ul>
+          )}
+        </Panel>
+        {isAdmin ? <p className="text-sm text-muted-foreground">Administrative mutations for this record are not exposed in Phase 2A.</p> : null}
       </div>
     </AppShell>
   );

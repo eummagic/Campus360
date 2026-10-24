@@ -4,34 +4,64 @@
 
 :root {
   color-scheme: dark;
-  --background: 222 47% 8%;
+  --background: 221 46% 8%;
   --foreground: 210 40% 98%;
-  --sidebar: 222 45% 11%;
-  --card: 221 39% 18%;
-  --border: 222 28% 27%;
-  --primary: 258 90% 66%;
-  --primary-foreground: 222 47% 8%;
+  --sidebar: 222 46% 11%;
+  --card: 222 39% 18%;
+  --muted: 221 34% 21%;
+  --border: 223 28% 27%;
+  --divider: 223 31% 24%;
+  --input: 221 46% 8%;
+  --input-border: 224 20% 50%;
+  --overlay: 222 47% 11%;
+  --overlay-opacity: 0.6;
+  --primary: 259 86% 63%;
+  --primary-foreground: 0 0% 100%;
+  --primary-text: 255 92% 76%;
+  --primary-soft: 237 40% 26%;
   --accent: 158 64% 67%;
-  --muted: 222 34% 20%;
-  --muted-foreground: 220 25% 75%;
-  --danger: 0 91% 71%;
   --success: 158 64% 67%;
+  --success-soft: 170 53% 15%;
+  --info: 199 95% 74%;
+  --info-soft: 207 64% 18%;
+  --warning: 46 97% 65%;
+  --warning-soft: 43 57% 15%;
+  --danger: 0 91% 71%;
+  --danger-soft: 348 35% 17%;
+  --neutral: 217 24% 81%;
+  --neutral-soft: 223 29% 24%;
+  --muted-foreground: 219 25% 75%;
 }
 
 .light {
   color-scheme: light;
-  --background: 210 40% 98%;
+  --background: 220 43% 97%;
   --foreground: 222 47% 11%;
-  --sidebar: 220 33% 96%;
+  --sidebar: 0 0% 100%;
   --card: 0 0% 100%;
-  --border: 214 25% 86%;
-  --primary: 262 83% 58%;
+  --muted: 216 42% 95%;
+  --border: 218 29% 87%;
+  --divider: 217 35% 93%;
+  --input: 0 0% 100%;
+  --input-border: 218 16% 59%;
+  --overlay: 222 47% 11%;
+  --overlay-opacity: 0.45;
+  --primary: 263 83% 58%;
   --primary-foreground: 0 0% 100%;
+  --primary-text: 263 70% 50%;
+  --primary-soft: 260 84% 95%;
   --accent: 158 64% 34%;
-  --muted: 210 30% 94%;
+  --success: 160 69% 28%;
+  --success-soft: 152 55% 91%;
+  --info: 202 85% 30%;
+  --info-soft: 203 79% 92%;
+  --warning: 36 100% 27%;
+  --warning-soft: 42 91% 91%;
+  --danger: 4 76% 40%;
+  --danger-soft: 7 86% 94%;
+  --neutral: 215 19% 35%;
+  --neutral-soft: 213 31% 93%;
   --muted-foreground: 215 16% 42%;
-  --danger: 0 72% 45%;
-  --success: 158 64% 30%;
 }
 
 body {
@@ -44,8 +74,8 @@ body {
 input,
 select,
 textarea {
-  border-color: hsl(var(--border));
-  background-color: hsl(var(--card));
+  border-color: hsl(var(--input-border));
+  background-color: hsl(var(--input));
   color: hsl(var(--foreground));
 }
 
@@ -60,22 +90,16 @@ select:focus-visible,
 textarea:focus-visible,
 button:focus-visible,
 a:focus-visible {
-  outline: 2px solid hsl(var(--primary));
+  outline: 2px solid hsl(var(--primary-text));
   outline-offset: 2px;
 }
 
-::selection {
-  background: hsl(var(--primary) / 0.18);
-}
-
-.text-red-600 {
-  color: hsl(var(--danger));
-}
-
-.border-red-500 {
+input[aria-invalid="true"],
+select[aria-invalid="true"],
+textarea[aria-invalid="true"] {
   border-color: hsl(var(--danger));
 }
 
-.text-green-700 {
-  color: hsl(var(--success));
+::selection {
+  background: hsl(var(--primary-text) / 0.2);
 }

@@ -21,9 +21,9 @@ export default async function ProfilePage() {
     return (
       <AppShell roles={roles} displayName={user.email ?? "User"}>
       <div className="w-full max-w-3xl space-y-4">
-        <Link href="/dashboard" className="text-sm font-medium text-primary underline-offset-4 hover:underline">← Back to dashboard</Link>
+        <Link href="/dashboard" className="text-sm font-medium text-primary-text underline-offset-4 hover:underline">← Back to dashboard</Link>
         <h1 className="text-3xl font-bold tracking-tight">Profile</h1>
-        <p className="rounded-xl border border-red-500 bg-card p-4 text-sm text-red-600" role="alert">
+        <p className="rounded-xl border border-danger bg-card p-4 text-sm text-danger" role="alert">
           Unable to load your profile. If this persists, contact an
           administrator.
         </p>
@@ -38,7 +38,7 @@ export default async function ProfilePage() {
     <AppShell roles={roles} displayName={profile.display_name}>
       <div className="w-full max-w-3xl space-y-6">
       <header>
-        <p className="text-sm font-semibold uppercase tracking-wider text-primary">Account</p>
+        <p className="text-sm font-semibold uppercase tracking-wider text-primary-text">Account</p>
         <h1 className="mt-1 text-3xl font-bold tracking-tight">Your profile</h1>
         <p className="mt-2 text-muted-foreground">Manage your account details and view your assigned roles.</p>
       </header>
@@ -55,7 +55,7 @@ export default async function ProfilePage() {
             <li className="text-muted-foreground">No roles assigned.</li>
           ) : (
             roles.map((r) => (
-              <li key={`${r.role}-${r.scope ?? "global"}`} className="rounded-full bg-primary/10 px-3 py-1 font-medium capitalize text-primary">
+              <li key={`${r.role}-${r.scope ?? "global"}`} className="rounded-full bg-neutral-soft px-3 py-1 font-medium capitalize text-neutral">
                 {r.role}{r.scope ? ` — ${r.scope}` : ""}
               </li>
             ))

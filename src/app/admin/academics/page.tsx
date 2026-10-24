@@ -24,12 +24,12 @@ export default async function AdminAcademicsPage() {
   return (
     <AppShell roles={roles} displayName={displayName}>
       <header>
-        <Link href="/dashboard" className="text-sm font-medium text-primary underline-offset-4 hover:underline">← Back to dashboard</Link>
-        <p className="mt-5 text-sm font-semibold uppercase tracking-wider text-primary">Administration</p>
+        <Link href="/dashboard" className="text-sm font-medium text-primary-text underline-offset-4 hover:underline">← Back to dashboard</Link>
+        <p className="mt-5 text-sm font-semibold uppercase tracking-wider text-primary-text">Administration</p>
         <h1 className="mt-1 text-3xl font-bold tracking-tight">Academic structure</h1>
         <p className="text-sm text-muted-foreground">Read-only view of the seeded structure. Reference-entity editing is not part of Phase 2A.</p>
       </header>
-      {loadError ? <p role="alert" className="rounded-md border border-red-500 p-3 text-sm text-red-600">Unable to load all academic data.</p> : null}
+      {loadError ? <p role="alert" className="rounded-md border border-danger p-3 text-sm text-danger">Unable to load all academic data.</p> : null}
       <section aria-label="Academic reference data" className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-3">
         <div className="h-full min-w-0 rounded-xl border bg-card p-5 shadow-sm"><h2 className="text-lg font-semibold">Departments <span className="ml-1 text-sm font-normal text-muted-foreground">({(departments.data ?? []).length})</span></h2><ul className="mt-3 divide-y text-sm">{(departments.data ?? []).map((item) => <li key={item.id} className="flex flex-wrap justify-between gap-1 py-2"><span>{item.code} — {item.name}</span><span className="text-muted-foreground">{item.status}</span></li>)}</ul></div>
         <div className="h-full min-w-0 rounded-xl border bg-card p-5 shadow-sm"><h2 className="text-lg font-semibold">Programs <span className="ml-1 text-sm font-normal text-muted-foreground">({(programs.data ?? []).length})</span></h2><ul className="mt-3 divide-y text-sm">{(programs.data ?? []).map((item) => { const department = (item as unknown as { department?: { code?: string } | null }).department; return <li key={item.id} className="py-2"><span className="font-medium">{item.code}</span> — {item.name}<span className="block text-xs text-muted-foreground">{department?.code ?? "—"} · {item.status}</span></li>; })}</ul></div>

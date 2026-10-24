@@ -34,9 +34,9 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4 py-12">
+    <main id="main-content" tabIndex={-1} className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4 py-12 outline-none">
       <div className="rounded-2xl border bg-card p-7 shadow-lg shadow-primary/5 sm:p-9">
-      <p className="text-sm font-bold uppercase tracking-wider text-primary">Campus360</p>
+      <p className="text-sm font-bold uppercase tracking-wider text-primary-text">Campus360</p>
       <h1 className="mt-2 text-3xl font-bold tracking-tight">Sign in</h1>
       <p className="mt-2 text-sm text-muted-foreground">
         Use a synthetic account configured for this local environment. Never enter real student data.
@@ -71,7 +71,7 @@ export default function LoginPage() {
           />
         </div>
         {error ? (
-          <p role="alert" className="text-sm text-red-600">
+          <p role="alert" className="text-sm text-danger">
             {error}
           </p>
         ) : null}

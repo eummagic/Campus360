@@ -26,8 +26,8 @@ export function ProfileForm({ initialDisplayName }: { initialDisplayName: string
             aria-invalid={state && !state.ok ? "true" : "false"}
           />
         </div>
-        {state?.ok ? <p role="status" className="text-sm text-green-700">Display name updated.</p> : null}
-        {state && !state.ok ? <p role="alert" className="text-sm text-red-600">{state.message}</p> : null}
+        {state?.ok ? <p role="status" className="text-sm text-success">Display name updated.</p> : null}
+        {state && !state.ok ? <p role="alert" className="text-sm text-danger">{state.message}</p> : null}
         <button type="submit" disabled={pending} className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">
           {pending ? "Saving…" : "Save"}
         </button>

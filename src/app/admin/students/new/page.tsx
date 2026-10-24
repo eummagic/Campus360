@@ -24,12 +24,12 @@ export default async function NewStudentPage() {
   return (
     <AppShell roles={roles} displayName={displayName}>
       <header>
-        <Link href="/dashboard" className="text-sm font-medium text-primary underline-offset-4 hover:underline">← Back to dashboard</Link>
-        <p className="mt-5 text-sm font-semibold uppercase tracking-wider text-primary">Administration</p>
+        <Link href="/dashboard" className="text-sm font-medium text-primary-text underline-offset-4 hover:underline">← Back to dashboard</Link>
+        <p className="mt-5 text-sm font-semibold uppercase tracking-wider text-primary-text">Administration</p>
         <h1 className="mt-1 text-3xl font-bold tracking-tight">Create student record</h1>
         <p className="text-sm text-muted-foreground">Links an existing student account to an academic record. Account creation is out of scope.</p>
       </header>
-      {hasError ? <p role="alert" className="rounded-md border border-red-500 p-3 text-sm text-red-600">Unable to load student accounts or programs.</p> : null}
+      {hasError ? <p role="alert" className="rounded-md border border-danger p-3 text-sm text-danger">Unable to load student accounts or programs.</p> : null}
       {!hasError && candidates.length === 0 ? (
         <div className="rounded-xl border border-dashed bg-card px-6 py-10 text-center shadow-sm"><p className="font-semibold text-foreground">No unlinked student accounts are available.</p><p className="mx-auto mt-2 max-w-lg text-sm text-muted-foreground">The account list could not provide any eligible students for this form.</p></div>
       ) : null}
