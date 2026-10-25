@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -6,11 +7,13 @@ export const metadata: Metadata = {
   description: "Campus operations and student self-service",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const theme = (await cookies()).get("campus360-theme")?.value === "light" ? "light" : "dark";
+
   return (
-    <html lang="en">
+    <html lang="en" className={theme} suppressHydrationWarning>
       <body className="min-h-screen bg-background text-foreground antialiased">
         {children}
       </body>

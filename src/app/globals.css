@@ -3,19 +3,119 @@
 @tailwind utilities;
 
 :root {
-  --background: 0 0% 100%;
-  --foreground: 222 47% 11%;
-  --primary: 262 83% 58%;
+  color-scheme: dark;
+  --background: 221 46% 8%;
+  --foreground: 210 40% 98%;
+  --sidebar: 222 46% 11%;
+  --card: 222 39% 18%;
+  --muted: 221 34% 21%;
+  --border: 223 28% 27%;
+  --divider: 223 31% 24%;
+  --input: 221 46% 8%;
+  --input-border: 224 20% 50%;
+  --overlay: 222 47% 11%;
+  --overlay-opacity: 0.6;
+  --primary: 259 86% 63%;
   --primary-foreground: 0 0% 100%;
-  --muted: 210 40% 96%;
-  --muted-foreground: 215 16% 47%;
+  --primary-text: 255 92% 76%;
+  --primary-soft: 237 40% 26%;
+  --accent: 158 64% 67%;
+  --success: 158 64% 67%;
+  --success-soft: 170 53% 15%;
+  --info: 199 95% 74%;
+  --info-soft: 207 64% 18%;
+  --warning: 46 97% 65%;
+  --warning-soft: 43 57% 15%;
+  --danger: 0 91% 71%;
+  --danger-soft: 348 35% 17%;
+  --neutral: 217 24% 81%;
+  --neutral-soft: 223 29% 24%;
+  --muted-foreground: 219 25% 75%;
+  --subject-0: 199 82% 68%;
+  --subject-1: 154 62% 62%;
+  --subject-2: 39 91% 67%;
+  --subject-3: 278 77% 75%;
+  --subject-4: 336 76% 70%;
+  --subject-5: 181 67% 63%;
+  --subject-6: 23 88% 67%;
+  --subject-7: 226 82% 73%;
 }
 
-.dark {
-  --background: 222 47% 7%;
-  --foreground: 210 40% 98%;
-  --primary: 263 70% 60%;
+.light {
+  color-scheme: light;
+  --background: 220 43% 97%;
+  --foreground: 222 47% 11%;
+  --sidebar: 0 0% 100%;
+  --card: 0 0% 100%;
+  --muted: 216 42% 95%;
+  --border: 218 29% 87%;
+  --divider: 217 35% 93%;
+  --input: 0 0% 100%;
+  --input-border: 218 16% 59%;
+  --overlay: 222 47% 11%;
+  --overlay-opacity: 0.45;
+  --primary: 263 83% 58%;
   --primary-foreground: 0 0% 100%;
-  --muted: 217 33% 17%;
-  --muted-foreground: 215 20% 65%;
+  --primary-text: 263 70% 50%;
+  --primary-soft: 260 84% 95%;
+  --accent: 158 64% 34%;
+  --success: 160 69% 28%;
+  --success-soft: 152 55% 91%;
+  --info: 202 85% 30%;
+  --info-soft: 203 79% 92%;
+  --warning: 36 100% 27%;
+  --warning-soft: 42 91% 91%;
+  --danger: 4 76% 40%;
+  --danger-soft: 7 86% 94%;
+  --neutral: 215 19% 35%;
+  --neutral-soft: 213 31% 93%;
+  --muted-foreground: 215 16% 42%;
+  --subject-0: 199 80% 35%;
+  --subject-1: 154 68% 29%;
+  --subject-2: 34 90% 34%;
+  --subject-3: 278 66% 42%;
+  --subject-4: 336 68% 40%;
+  --subject-5: 181 73% 29%;
+  --subject-6: 23 81% 39%;
+  --subject-7: 226 75% 43%;
+}
+
+body {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  text-rendering: optimizeLegibility;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+input,
+select,
+textarea {
+  border-color: hsl(var(--input-border));
+  background-color: hsl(var(--input));
+  color: hsl(var(--foreground));
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: hsl(var(--muted-foreground));
+  opacity: 0.8;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid hsl(var(--primary-text));
+  outline-offset: 2px;
+}
+
+input[aria-invalid="true"],
+select[aria-invalid="true"],
+textarea[aria-invalid="true"] {
+  border-color: hsl(var(--danger));
+}
+
+::selection {
+  background: hsl(var(--primary-text) / 0.2);
 }

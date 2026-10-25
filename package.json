@@ -16,9 +16,11 @@
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
     "db:seed:users": "node --env-file=.env.local --import tsx scripts/seed-users.ts",
+    "db:seed:synthetic": "node --env-file=.env.local --import tsx scripts/seed-synthetic-campus.ts",
     "db:test": "supabase test db"
   },
   "dependencies": {
+    "@google/genai": "^2.31.0",
     "@hookform/resolvers": "^3.10.0",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.49.1",

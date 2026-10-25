@@ -29,17 +29,19 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/profile");
+    router.push("/dashboard");
     router.refresh();
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center p-8">
-      <h1 className="text-2xl font-semibold">Sign in</h1>
+    <main id="main-content" tabIndex={-1} className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4 py-12 outline-none">
+      <div className="rounded-2xl border bg-card p-7 shadow-lg shadow-primary/5 sm:p-9">
+      <p className="text-sm font-bold uppercase tracking-wider text-primary-text">Campus360</p>
+      <h1 className="mt-2 text-3xl font-bold tracking-tight">Sign in</h1>
       <p className="mt-2 text-sm text-muted-foreground">
         Use a synthetic account configured for this local environment. Never enter real student data.
       </p>
-      <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+      <form onSubmit={handleSubmit} className="mt-6 space-y-5">
         <div>
           <label htmlFor="email" className="text-sm font-medium">
             Email
@@ -48,9 +50,10 @@ export default function LoginPage() {
             id="email"
             type="email"
             required
+            autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="mt-1 w-full rounded-md border px-3 py-2"
+            className="mt-1 w-full rounded-md border px-3 py-2 shadow-sm"
           />
         </div>
         <div>
@@ -61,24 +64,26 @@ export default function LoginPage() {
             id="password"
             type="password"
             required
+            autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="mt-1 w-full rounded-md border px-3 py-2"
+            className="mt-1 w-full rounded-md border px-3 py-2 shadow-sm"
           />
         </div>
         {error ? (
-          <p role="alert" className="text-sm text-red-600">
+          <p role="alert" className="text-sm text-danger">
             {error}
           </p>
         ) : null}
         <button
           type="submit"
           disabled={pending}
-          className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+          className="w-full rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {pending ? "Signing in…" : "Sign in"}
         </button>
       </form>
+      </div>
     </main>
   );
 }
