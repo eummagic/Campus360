@@ -1,5 +1,5 @@
 import { MongoClient, MongoServerError, ObjectId, type CollectionInfo, type Db, type Document } from "mongodb";
-import { COLLECTIONS } from "./schema";
+import { AUTH_INDEXES, COLLECTIONS } from "./schema";
 
 let failures = 0;
 
@@ -63,6 +63,14 @@ async function main() {
           `index ${spec.name}.${expected.name}`,
           Boolean(found) && Boolean(found?.unique) === Boolean(expected.unique),
         );
+      }
+    }
+
+    for (const group of AUTH_INDEXES) {
+      const actual = await db.collection(group.collection).indexes();
+      for (const expected of group.indexes) {
+        const found = actual.find((i) => i.name === expected.name);
+        check(`auth index ${group.collection}.${expected.name}`, Boolean(found) && Boolean(found?.unique) === Boolean(expected.unique));
       }
     }
 

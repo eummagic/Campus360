@@ -1,5 +1,5 @@
 import { MongoClient } from "mongodb";
-import { COLLECTIONS, buildValidator } from "./schema";
+import { AUTH_INDEXES, COLLECTIONS, buildValidator } from "./schema";
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -33,6 +33,10 @@ async function main() {
       .collection<{ _id: string; version: number; updated_at: Date }>("locks")
       .updateOne({ _id: "timetable" }, { $setOnInsert: { version: 0, updated_at: new Date() } }, { upsert: true });
     console.log("lock ensured       locks/timetable");
+    for (const group of AUTH_INDEXES) {
+      await db.collection(group.collection).createIndexes(group.indexes);
+      console.log(`auth indexes       ${group.collection} (${group.indexes.length})`);
+    }
   } finally {
     await client.close();
   }

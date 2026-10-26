@@ -216,3 +216,24 @@ export function buildValidator(spec: CollectionSpec): Document {
   if (spec.expr) validator.$expr = spec.expr;
   return validator;
 }
+
+export const AUTH_INDEXES: Array<{ collection: string; indexes: IndexDescription[] }> = [
+  { collection: "user", indexes: [{ key: { email: 1 }, name: "auth_user_email_uq", unique: true }] },
+  {
+    collection: "session",
+    indexes: [
+      { key: { token: 1 }, name: "auth_session_token_uq", unique: true },
+      { key: { userId: 1 }, name: "auth_session_user_idx" },
+      { key: { expiresAt: 1 }, name: "auth_session_expires_ttl", expireAfterSeconds: 0 },
+    ],
+  },
+  {
+    collection: "account",
+    indexes: [
+      { key: { userId: 1 }, name: "auth_account_user_idx" },
+      { key: { providerId: 1, accountId: 1 }, name: "auth_account_provider_uq", unique: true },
+    ],
+  },
+  { collection: "verification", indexes: [{ key: { identifier: 1 }, name: "auth_verification_identifier_idx" }] },
+];
+

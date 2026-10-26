@@ -19,13 +19,17 @@
     "db:seed:synthetic": "node --env-file=.env.local --import tsx scripts/seed-synthetic-campus.ts",
     "db:test": "supabase test db",
     "db:mongo:init": "node --env-file=.env.local --import tsx scripts/mongo/init-db.ts",
-    "db:mongo:verify": "node --env-file=.env.local --import tsx scripts/mongo/verify-db.ts"
+    "db:mongo:verify": "node --env-file=.env.local --import tsx scripts/mongo/verify-db.ts",
+    "db:mongo:seed-auth": "node --env-file=.env.local --import tsx scripts/mongo/seed-auth-users.ts",
+    "db:mongo:verify-auth": "node --env-file=.env.local --import tsx scripts/mongo/verify-auth.ts"
   },
   "dependencies": {
+    "@better-auth/mongo-adapter": "1.7.13",
     "@google/genai": "^2.31.0",
     "@hookform/resolvers": "^3.10.0",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.49.1",
+    "better-auth": "1.7.13",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.468.0",
