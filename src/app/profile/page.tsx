@@ -1,20 +1,15 @@
 import { requireUser, getUserRoles } from "@/lib/auth";
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
-import { createClient } from "@/lib/supabase/server";
+import { getAccess } from "@/lib/data/core";
+import { getOwnProfile } from "@/lib/data/campus";
 import { ProfileForm } from "./profile-form";
 
 export const dynamic = "force-dynamic";
 
 export default async function ProfilePage() {
   const user = await requireUser();
-  const supabase = await createClient();
-
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select("id, display_name, contact_email, created_at, updated_at")
-    .eq("id", user.id)
-    .single();
+  const { data: profile, error } = await getOwnProfile(await getAccess(user.id));
 
   if (error || !profile) {
     const roles = await getUserRoles(user.id);

@@ -8,8 +8,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { hasRole, isStaff, requireUserWithProfile } from "@/lib/auth";
-import { listDirectory, listReferenceData } from "@/lib/academics";
-import { createClient } from "@/lib/supabase/server";
+import { listDirectory, listReferenceData, listVisibleTeachingAssignments } from "@/lib/academics";
+import { getAccess } from "@/lib/data/core";
 import { directorySearchSchema, type DirectorySearch } from "@/lib/validation/academic";
 
 export const dynamic = "force-dynamic";
@@ -50,7 +50,7 @@ export default async function DirectoryPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { roles, displayName } = await requireUserWithProfile();
+  const { user, roles, displayName } = await requireUserWithProfile();
   if (!isStaff(roles)) redirect("/dashboard");
   const isAdmin = hasRole(roles, "admin");
 
@@ -64,11 +64,11 @@ export default async function DirectoryPage({
   });
   const filters: DirectorySearch | null = parsed.success ? parsed.data : hasFilters ? null : {};
   const displayFilters = filters ?? {};
-  const supabase = await createClient();
+  const access = await getAccess(user.id);
   const [{ rows, error }, reference, assignments] = await Promise.all([
-    filters ? listDirectory({ q: filters.q, programId: filters.program, status: filters.status, offeringId: filters.offering }) : Promise.resolve({ rows: [], error: null }),
+    filters ? listDirectory(access, { q: filters.q, programId: filters.program, status: filters.status, offeringId: filters.offering }) : Promise.resolve({ rows: [], error: null }),
     listReferenceData(),
-    supabase.from("teaching_assignments").select("id, offering:course_offerings(id, section_code, term:academic_terms(name), subject:subjects(code, name))"),
+    listVisibleTeachingAssignments(access),
   ]);
   const offeringOptions = (assignments.data ?? []) as unknown as OfferingOption[];
   const currentUrl = rawQueryHref(raw);

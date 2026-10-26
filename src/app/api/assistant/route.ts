@@ -1,8 +1,7 @@
 
 import { GoogleGenAI } from "@google/genai";
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { getUserRoles } from "@/lib/auth";
+import { getOptionalUser, getUserRoles } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -58,13 +57,9 @@ const MAX_HISTORY_MESSAGES = 6;
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
+    const user = await getOptionalUser();
 
-    if (authError || !user) {
+    if (!user) {
       return NextResponse.json(
         { error: "Please sign in to use the assistant." },
         { status: 401 },

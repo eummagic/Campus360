@@ -7,7 +7,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { hasRole, requireUserWithProfile } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { getAccess } from "@/lib/data/core";
+import { listVisibleSchedule, loadAttendanceRoster, myAttendanceHistory, myAttendanceSummary, offeringAttendanceByStudent, scopedAttendanceSummary } from "@/lib/data/campus";
 import { summarizeAttendanceCounts, type AttendanceStatus } from "@/lib/attendance";
 import { AttendanceForm } from "./attendance-form";
 
@@ -34,48 +35,28 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
   const historyPage = typeof query.page === "string" && /^[1-9]\d*$/.test(query.page) ? Math.min(Number(query.page), 10000) : 1;
   const historyPageSize = 50;
   const rawDate = typeof query.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(query.date) ? query.date : new Date().toISOString().slice(0, 10);
-  const supabase = await createClient();
+  const access = await getAccess(user.id);
 
-  const [studentRecordResult, teacherAssignmentsResult, summaryResult] = await Promise.all([
-    isStudent ? supabase.from("student_records").select("id").eq("user_id", user.id).maybeSingle() : Promise.resolve({ data: null, error: null }),
-    isTeacher ? supabase.from("teaching_assignments").select("offering_id").eq("teacher_user_id", user.id) : Promise.resolve({ data: [], error: null }),
-    isTeacher || isAdmin ? supabase.rpc("scoped_attendance_summary") : Promise.resolve({ data: [], error: null }),
+  const [scheduleResult, summaryResult] = await Promise.all([
+    isTeacher ? listVisibleSchedule(access, { offeringIds: access.teacherOfferingIds.map((id) => id.toHexString()) }) : Promise.resolve({ data: [], error: null }),
+    isTeacher || isAdmin ? scopedAttendanceSummary(access) : Promise.resolve({ data: [], error: null }),
   ]);
-  const teacherOfferingIds = (teacherAssignmentsResult.data ?? []).map((assignment) => assignment.offering_id);
-  const scheduleResult = teacherAssignmentsResult.error
-    ? { data: null, error: teacherAssignmentsResult.error }
-    : isTeacher && teacherOfferingIds.length
-      ? await supabase.from("timetable_entries").select("id, weekday, start_time, end_time, offering:course_offerings(id, section_code, subject:subjects(code, name), term:academic_terms(name))").in("offering_id", teacherOfferingIds).order("weekday").order("start_time").limit(200)
-      : { data: [], error: null };
-  if (teacherAssignmentsResult.error) console.error("[attendance] teacher assignments query failed", { code: teacherAssignmentsResult.error.code, message: teacherAssignmentsResult.error.message });
-  if (scheduleResult.error) {
-    console.error("[attendance] assigned timetable query failed", {
-      code: scheduleResult.error.code,
-      message: scheduleResult.error.message,
-      hint: scheduleResult.error.hint,
-    });
-  }
-  if (summaryResult.error) {
-    console.error("[attendance] scoped summary query failed", {
-      code: summaryResult.error.code,
-      message: summaryResult.error.message,
-      hint: summaryResult.error.hint,
-    });
-  }
-  const studentRecordId = studentRecordResult.data?.id ?? null;
+  if (scheduleResult.error) console.error("[attendance] assigned timetable query failed", { code: scheduleResult.error.code, message: scheduleResult.error.message });
+  if (summaryResult.error) console.error("[attendance] scoped summary query failed", { code: summaryResult.error.code, message: summaryResult.error.message });
+  const studentRecordId = access.studentRecordId?.toHexString() ?? null;
   const [studentSummaryResult, studentHistoryResult] = isStudent && studentRecordId
     ? await Promise.all([
-        supabase.rpc("my_attendance_summary"),
-        supabase.rpc("my_attendance_history", { p_limit: historyPageSize, p_offset: (historyPage - 1) * historyPageSize }),
+        myAttendanceSummary(access),
+        myAttendanceHistory(access, historyPageSize, (historyPage - 1) * historyPageSize),
       ])
     : [{ data: [], error: null }, { data: [], error: null }];
 
-  const schedules = (scheduleResult.data ?? []) as unknown as ScheduleRow[];
+  const schedules = (scheduleResult.data ?? []).slice(0, 200) as unknown as ScheduleRow[];
   const reportOfferingId = isTeacher && schedules.some((entry) => entry.offering.id === requestedReportOffering) ? requestedReportOffering : "";
   const studentReportResult = reportOfferingId
-    ? await supabase.rpc("offering_attendance_by_student", { p_offering_id: reportOfferingId })
+    ? await offeringAttendanceByStudent(access, reportOfferingId)
     : { data: [], error: null };
-  const studentReportRows = (studentReportResult.data ?? []) as unknown as Array<{ student_record_id: string; registration_number: string; display_name: string; recorded_sessions: number; present_count: number; absent_count: number; late_count: number }>;
+  const studentReportRows = studentReportResult.data;
   const selectedSchedule = isTeacher ? schedules.find((entry) => entry.id === entryId) : undefined;
   const selectedDateIsValid = /^\d{4}-\d{2}-\d{2}$/.test(rawDate) && Number.isFinite(Date.parse(`${rawDate}T00:00:00Z`));
   const selectedWeekday = selectedDateIsValid ? new Date(`${rawDate}T00:00:00Z`).getUTCDay() || 7 : 0;
@@ -83,29 +64,9 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
   let roster: Array<{ studentRecordId: string; registrationNumber: string; displayName: string; status: "present" | "absent" | "late" | "" }> = [];
   let sessionError: string | null = null;
   if (selectedSchedule && selectedDayMatches) {
-    const [enrolmentResult, sessionResult] = await Promise.all([
-      supabase.from("enrolments").select("student_record_id").eq("offering_id", selectedSchedule.offering.id).limit(201),
-      supabase.from("attendance_sessions").select("id").eq("timetable_entry_id", selectedSchedule.id).eq("session_date", rawDate).maybeSingle(),
-    ]);
-    if (enrolmentResult.error || sessionResult.error) {
-      sessionError = "Unable to load the roster for this class.";
-    } else {
-      const studentIds = (enrolmentResult.data ?? []).map((row) => row.student_record_id);
-      if (studentIds.length > 200) {
-        sessionError = "This roster exceeds the current 200-student marking limit.";
-      } else {
-        const [directoryResult, marksResult] = await Promise.all([
-          studentIds.length ? supabase.from("student_directory").select("student_record_id, registration_number, display_name").in("student_record_id", studentIds).order("registration_number") : Promise.resolve({ data: [], error: null }),
-          sessionResult.data ? supabase.from("attendance_records").select("student_record_id, status").eq("session_id", sessionResult.data.id) : Promise.resolve({ data: [], error: null }),
-        ]);
-        if (directoryResult.error || marksResult.error) {
-          sessionError = "Unable to load the roster for this class.";
-        } else {
-          const saved = new Map((marksResult.data ?? []).map((mark) => [mark.student_record_id, mark.status as "present" | "absent" | "late"]));
-          roster = (directoryResult.data ?? []).map((student) => ({ studentRecordId: student.student_record_id, registrationNumber: student.registration_number, displayName: student.display_name, status: saved.get(student.student_record_id) ?? "" }));
-        }
-      }
-    }
+    const rosterResult = await loadAttendanceRoster(access, selectedSchedule.id, rawDate);
+    if (rosterResult.ok) roster = rosterResult.roster;
+    else sessionError = rosterResult.reason === "limit" ? "This roster exceeds the current 200-student marking limit." : "Unable to load the roster for this class.";
   }
 
   const studentSummaries = (studentSummaryResult.data ?? []) as unknown as AttendanceSummary[];
@@ -160,7 +121,7 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
       {isStudent ? (
         <>
           <Panel title="My attendance summary" description="Percentage is present marks divided by recorded marks; late marks are shown separately and do not count as present.">
-            {studentRecordResult.error || studentSummaryResult.error ? <Callout tone="danger" role="alert">Unable to load your attendance summary.</Callout> : studentRecordId ? overallStudentSummary.total === 0 ? <EmptyState title="No attendance recorded" description="Your attendance summary will appear after teachers record marks for scheduled classes." /> : (
+            {studentSummaryResult.error ? <Callout tone="danger" role="alert">Unable to load your attendance summary.</Callout> : studentRecordId ? overallStudentSummary.total === 0 ? <EmptyState title="No attendance recorded" description="Your attendance summary will appear after teachers record marks for scheduled classes." /> : (
               <>
                 <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   {[["Recorded", overallStudentSummary.total], ["Present", overallStudentSummary.present], ["Absent", overallStudentSummary.absent], ["Late", overallStudentSummary.late]].map(([label, count]) => <div key={label} className="rounded-lg bg-muted p-3"><dt className="text-xs font-medium uppercase text-muted-foreground">{label}</dt><dd className="mt-1 text-xl font-bold">{count}</dd></div>)}

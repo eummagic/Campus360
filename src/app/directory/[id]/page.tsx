@@ -8,6 +8,7 @@ import { Panel } from "@/components/ui/panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { hasRole, isStaff, requireUserWithProfile } from "@/lib/auth";
 import { getDirectoryEntry, listEnrolmentsForRecord } from "@/lib/academics";
+import { getAccess } from "@/lib/data/core";
 
 export const dynamic = "force-dynamic";
 
@@ -18,11 +19,12 @@ export default async function DirectoryDetailPage({
 }) {
   const { user, roles, displayName } = await requireUserWithProfile();
   const { id } = await params;
-  const { row, error } = await getDirectoryEntry(id);
+  const access = await getAccess(user.id);
+  const { row, error } = await getDirectoryEntry(access, id);
   if (error || !row) notFound();
   if (!isStaff(roles) && row.user_id !== user.id) redirect("/dashboard");
 
-  const { rows, error: enrolmentError } = await listEnrolmentsForRecord(id);
+  const { rows, error: enrolmentError } = await listEnrolmentsForRecord(access, id);
   const isAdmin = hasRole(roles, "admin");
   const isTeacher = hasRole(roles, "teacher");
   const breadcrumbs = isStaff(roles)

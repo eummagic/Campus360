@@ -1,9 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { auth } from "@/lib/auth/instance";
 import { requireUser } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { getAccess } from "@/lib/data/core";
+import { updateMyDisplayName } from "@/lib/data/campus";
 import { updateProfileSchema } from "@/lib/validation/profile";
 
 export type UpdateProfileResult =
@@ -14,7 +17,7 @@ export async function updateDisplayName(
   _previous: UpdateProfileResult | null,
   formData: FormData,
 ): Promise<UpdateProfileResult> {
-  await requireUser();
+  const user = await requireUser();
 
   const parsed = updateProfileSchema.safeParse({
     displayName: formData.get("displayName"),
@@ -23,11 +26,8 @@ export async function updateDisplayName(
     return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid display name." };
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase.rpc("update_my_display_name", {
-    p_display_name: parsed.data.displayName,
-  });
-  if (error) {
+  const result = await updateMyDisplayName(await getAccess(user.id), parsed.data.displayName);
+  if (!result.ok) {
     return { ok: false, message: "Could not save your display name. Please try again." };
   }
 
@@ -37,7 +37,6 @@ export async function updateDisplayName(
 
 export async function signOut() {
   await requireUser();
-  const supabase = await createClient();
-  await supabase.auth.signOut();
+  await auth.api.signOut({ headers: await headers() });
   redirect("/login");
 }

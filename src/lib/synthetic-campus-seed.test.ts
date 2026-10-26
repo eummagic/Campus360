@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { makeSyntheticAssignments, stableSyntheticUuid, syntheticAttendanceStatus, WEEKLY_SCHEDULE } from "../../scripts/seed-synthetic-campus";
+import { makeSyntheticAssignments, stableSyntheticUuid, syntheticAttendanceStatus, WEEKLY_SCHEDULE } from "../../scripts/mongo/synthetic-fixture";
 
 describe("synthetic Campus360 schedule fixture", () => {
   it("uses a stable version-5 UUID namespace for deterministic records", () => {

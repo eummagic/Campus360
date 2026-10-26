@@ -1,27 +1,23 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/supabase/server", () => ({
-  createClient: vi.fn(),
-}));
+vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
+vi.mock("@/lib/auth/instance", () => ({ auth: { api: { getSession: vi.fn() } } }));
+vi.mock("@/lib/mongo/connection", () => ({ getDb: vi.fn() }));
 
-import { createClient } from "@/lib/supabase/server";
+import { auth } from "@/lib/auth/instance";
 import { requireUser } from "./auth";
 
 describe("requireUser", () => {
   it("returns the authenticated user", async () => {
-    const user = { id: "user-1", email: "student1@example.com" };
-    vi.mocked(createClient).mockResolvedValue({
-      auth: { getUser: vi.fn().mockResolvedValue({ data: { user }, error: null }) },
+    vi.mocked(auth.api.getSession).mockResolvedValue({
+      user: { id: "665f1c2b9a1e4b0012345678", email: "student1@example.com" },
+      session: {},
     } as never);
-
-    await expect(requireUser()).resolves.toEqual(user);
+    await expect(requireUser()).resolves.toEqual({ id: "665f1c2b9a1e4b0012345678", email: "student1@example.com" });
   });
 
   it("redirects when there is no user", async () => {
-    vi.mocked(createClient).mockResolvedValue({
-      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: new Error("no session") }) },
-    } as never);
-
+    vi.mocked(auth.api.getSession).mockResolvedValue(null as never);
     await expect(requireUser()).rejects.toThrow("NEXT_REDIRECT");
   });
 });

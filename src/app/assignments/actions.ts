@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { hasRole, requireUserWithProfile } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { getAccess } from "@/lib/data/core";
+import { createAssignment as insertAssignment, updateAssignment as saveAssignment } from "@/lib/data/campus";
 import { assignmentSchema, updateAssignmentSchema } from "@/lib/validation/campus";
 
 export type AssignmentActionResult = { ok: true } | { ok: false; message: string };
@@ -23,16 +24,14 @@ export async function createAssignment(_previous: AssignmentActionResult | null,
   const parsed = assignmentSchema.safeParse(readAssignmentForm(formData));
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Check the assignment details." };
 
-  const supabase = await createClient();
-  const { error } = await supabase.from("assignments").insert({
-    offering_id: parsed.data.offeringId,
+  const result = await insertAssignment(await getAccess(user.id), {
+    offeringId: parsed.data.offeringId,
     title: parsed.data.title,
     instructions: parsed.data.instructions,
-    due_at: new Date(`${parsed.data.dueAt}:00Z`).toISOString(),
+    dueAt: new Date(`${parsed.data.dueAt}:00Z`),
     status: parsed.data.status,
-    created_by: user.id,
   });
-  if (error) return { ok: false, message: "Could not create the assignment for that offering." };
+  if (!result.ok) return { ok: false, message: "Could not create the assignment for that offering." };
 
   revalidatePath("/assignments");
   revalidatePath("/calendar");
@@ -41,20 +40,20 @@ export async function createAssignment(_previous: AssignmentActionResult | null,
 }
 
 export async function updateAssignment(_previous: AssignmentActionResult | null, formData: FormData): Promise<AssignmentActionResult> {
-  const { roles } = await requireUserWithProfile();
+  const { user, roles } = await requireUserWithProfile();
   if (!hasRole(roles, "teacher")) return { ok: false, message: "Only assigned teachers can edit assignments." };
   const parsed = updateAssignmentSchema.safeParse({ ...readAssignmentForm(formData), assignmentId: formData.get("assignmentId") });
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Check the assignment details." };
 
-  const supabase = await createClient();
-  const { error } = await supabase.from("assignments").update({
-    offering_id: parsed.data.offeringId,
+  const result = await saveAssignment(await getAccess(user.id), {
+    assignmentId: parsed.data.assignmentId,
+    offeringId: parsed.data.offeringId,
     title: parsed.data.title,
     instructions: parsed.data.instructions,
-    due_at: new Date(`${parsed.data.dueAt}:00Z`).toISOString(),
+    dueAt: new Date(`${parsed.data.dueAt}:00Z`),
     status: parsed.data.status,
-  }).eq("id", parsed.data.assignmentId);
-  if (error) return { ok: false, message: "Could not update the assignment." };
+  });
+  if (!result.ok) return { ok: false, message: "Could not update the assignment." };
 
   revalidatePath("/assignments");
   revalidatePath("/calendar");

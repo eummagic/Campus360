@@ -1,9 +1,12 @@
 import { z } from "zod";
 
+// MongoDB ObjectId (24 hex characters).
+const objectId = (message = "Invalid id.") => z.string().regex(/^[0-9a-f]{24}$/i, message);
+
 const timeSchema = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/, "Enter a valid time.");
 
 export const timetableEntrySchema = z.object({
-  offeringId: z.string().uuid("Select a course offering."),
+  offeringId: objectId("Select a course offering."),
   weekday: z.coerce.number().int().min(1).max(7),
   startTime: timeSchema,
   endTime: timeSchema,
@@ -18,7 +21,7 @@ const localUtcDateTime = z.string()
   .refine((value) => Number.isFinite(Date.parse(`${value}:00Z`)), "Enter a real calendar date.");
 
 export const assignmentSchema = z.object({
-  offeringId: z.string().uuid("Select an assigned offering."),
+  offeringId: objectId("Select an assigned offering."),
   title: z.string().trim().min(1, "Title is required.").max(160, "Title must be 160 characters or fewer."),
   instructions: z.string().max(10000, "Instructions must be 10,000 characters or fewer."),
   dueAt: localUtcDateTime,
@@ -26,14 +29,14 @@ export const assignmentSchema = z.object({
 });
 
 export const updateAssignmentSchema = assignmentSchema.extend({
-  assignmentId: z.string().uuid("Invalid assignment."),
+  assignmentId: objectId("Invalid assignment."),
 });
 
 export const attendanceSubmissionSchema = z.object({
-  timetableEntryId: z.string().uuid(),
+  timetableEntryId: objectId(),
   sessionDate: z.string().date(),
   records: z.array(z.object({
-    studentRecordId: z.string().uuid(),
+    studentRecordId: objectId(),
     status: z.enum(["present", "absent", "late"]),
   })).min(1).max(200),
 }).refine((value) => new Set(value.records.map((record) => record.studentRecordId)).size === value.records.length, {

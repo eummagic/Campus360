@@ -1,6 +1,6 @@
-# Campus360 security matrix — Phase 2A
+# Campus360 security matrix
 
-The authoritative access rules are in `supabase/migrations/0001_initial.sql` and `supabase/migrations/0002_academic_foundation.sql`. Server pages and actions repeat authorization checks; RLS and database grants enforce access if a request bypasses the UI.
+Since the MongoDB migration, the authoritative access rules are in `src/lib/data/core.ts` (`getAccess`, `readableOfferingIds`, `readableStudentRecordIds`) and the query functions in `src/lib/data/campus.ts` and `src/lib/academics.ts`. MongoDB has no row-level security, so every read and write goes through this server-only data layer; pages and Server Actions also check the verified Better Auth session and required role. `pnpm db:mongo:verify-app` checks the matrix below against the running app.
 
 | Data | Student | Assigned teacher | Unassigned teacher | Admin | Driver/finance | Anonymous |
 |---|---|---|---|---|---|---|
@@ -15,8 +15,8 @@ The authoritative access rules are in `supabase/migrations/0001_initial.sql` and
 | Academic audit writes | No direct access | No direct access | No direct access | Triggered atomically by table changes | No direct access | No access |
 | `list_unlinked_student_users()` | Empty result | Empty result | Empty result | Unlinked student accounts only | Empty result | No execute access |
 
-The reference-data tables are readable by authenticated users by design. Student PII is present only in the scoped student directory and profile rows, where RLS still applies. The directory view uses `security_invoker = true` and therefore does not bypass underlying policies.
+Reference data (departments, programs, terms, subjects, offerings) is readable by any signed-in user by design. Student PII is returned only through the scoped directory and profile functions.
 
-All authorization helper functions use `SECURITY DEFINER` with an empty `search_path`, qualify database objects, revoke default `PUBLIC`/`anon` execution, and grant only the execution needed by authenticated RLS evaluation. The candidate RPC repeats an admin check internally. Academic-table triggers write audit rows with the authenticated actor (or null for trusted service-role seed writes), without copying row contents into audit metadata.
+Writes run inside MongoDB transactions and append an `audit_events` row (actor, action, entity) in the same transaction; audit rows are never updated or deleted by the app. Collection-level `$jsonSchema` validators reject malformed or unexpected fields, and unique indexes block duplicates.
 
-The service-role key is used only by local development seed scripts. It is not referenced by browser code, Server Components, or Server Actions. Keep it out of `NEXT_PUBLIC_*` variables and never commit it.
+Database credentials live only in `.env.local` (never committed). The app uses the `campus360_app` user (readWrite on `campus360` only); the `campus360_admin` user is used only by the setup scripts. Neither is ever exposed to the browser or put in `NEXT_PUBLIC_*` variables.
