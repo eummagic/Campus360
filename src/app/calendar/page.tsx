@@ -7,7 +7,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { hasRole, requireUserWithProfile } from "@/lib/auth";
 import { buildAssignmentEvents, buildScheduleEvents, monthDates, normalizeMonth, type CalendarEvent, type CalendarSchedule } from "@/lib/calendar";
-import { createClient } from "@/lib/supabase/server";
+import { getAccess } from "@/lib/data/core";
+import { listVisibleAssignments, listVisibleSchedule } from "@/lib/data/campus";
 
 export const dynamic = "force-dynamic";
 
@@ -45,7 +46,7 @@ function EventLink({ event }: { event: CalendarEvent }) {
 }
 
 export default async function CalendarPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const { roles, displayName } = await requireUserWithProfile();
+  const { user, roles, displayName } = await requireUserWithProfile();
   if (!roles.some(({ role }) => role === "admin" || role === "teacher" || role === "student")) redirect("/dashboard");
   const audience = hasRole(roles, "admin") ? "admin" : hasRole(roles, "teacher") ? "teacher" : "student";
   const requestedMonth = (await searchParams).month;
@@ -53,14 +54,13 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const [year, monthNumber] = month.split("-").map(Number);
   const monthStart = `${month}-01`;
   const nextMonthStart = `${shiftMonth(month, 1)}-01`;
-  const supabase = await createClient();
+  const access = await getAccess(user.id);
   const [scheduleResult, assignmentResult] = await Promise.all([
-    supabase.from("timetable_entries")
-      .select("id, weekday, start_time, end_time, location, offering:course_offerings(id, section_code, term:academic_terms(name, status, starts_on, ends_on), subject:subjects(code, name))")
-      .limit(500),
-    supabase.from("assignments")
-      .select("id, title, due_at, status, offering:course_offerings(section_code, subject:subjects(code))")
-      .eq("status", "published").gte("due_at", `${monthStart}T00:00:00Z`).lt("due_at", `${nextMonthStart}T00:00:00Z`).order("due_at").limit(500),
+    listVisibleSchedule(access),
+    listVisibleAssignments(access, {
+      status: "published",
+      due_at: { $gte: new Date(`${monthStart}T00:00:00Z`), $lt: new Date(`${nextMonthStart}T00:00:00Z`) },
+    }),
   ]);
   if (scheduleResult.error) console.error("[calendar] schedule query failed", describeDatabaseError(scheduleResult.error));
   if (assignmentResult.error) console.error("[calendar] assignment query failed", describeDatabaseError(assignmentResult.error));

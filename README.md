@@ -1,72 +1,76 @@
-# Campus360 Phase 2A
+# Campus360
 
-This repository contains the Phase 1 authentication/profile foundation and the Phase 2A relational academic foundation. It uses synthetic accounts and data only.
+Campus portal (attendance, timetable, assignments, student records) built with Next.js 16, **MongoDB Atlas** and **Better Auth**. It uses synthetic accounts and data only.
+
+> Migrated from Supabase (Postgres + RLS) to MongoDB in October 2026. The last Supabase version is preserved at git tag `checkpoint/pre-mongodb-migration`.
+
+## Stack
+
+| Layer | Choice |
+|---|---|
+| Framework | Next.js 16.4.3 (App Router, Server Components, Server Actions) |
+| Database | MongoDB Atlas (free cluster), database `campus360`, driver `mongodb` 7.7.0 |
+| Auth | Better Auth 1.7.13 (email + password, sessions stored in MongoDB; public sign-up disabled) |
+| Validation | zod |
 
 ## Prerequisites
 
-- Node.js 22 or 24
-- pnpm 10
-- Docker Desktop for local Supabase database and RLS tests
+- Node.js 22 or 24, pnpm 10
+- A MongoDB Atlas cluster with two database users:
+  - `campus360_app` — **readWrite@campus360** (used by the app)
+  - `campus360_admin` — **dbAdmin@campus360 + readWrite@campus360** (used only by the setup scripts)
+- Your current IP address added in Atlas → Database & Network Access → IP Access List
 
 ## Local setup
 
-1. Install dependencies with `pnpm install`.
-2. Start Supabase with `pnpm db:start` (Docker must be running).
-3. Copy `.env.example` to `.env.local` and set the local values printed by Supabase.
-4. On a fresh, disposable local database only, apply migrations and seed SQL with `pnpm db:reset`. Never use this command on a database whose local data you need to keep.
-5. Seed synthetic login accounts with `pnpm db:seed:users`.
-6. Start the app with `pnpm dev` and open `http://localhost:3000`.
+1. `pnpm install`
+2. Copy `.env.example` to `.env.local` and fill in `MONGODB_URI`, `MONGODB_ADMIN_URI`, `MONGODB_DB=campus360`. Never commit `.env.local`.
+3. `node --import tsx scripts/mongo/ensure-auth-env.ts` — adds a random `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL` to `.env.local` (values are not printed).
+4. `pnpm db:mongo:init` — creates collections, schema validators and indexes (safe to re-run; never drops anything).
+5. `pnpm db:mongo:verify` — checks validators, indexes and transactions.
+6. `pnpm db:mongo:seed-demo` — creates the demo accounts and academic data (safe to re-run; never overwrites).
+7. `pnpm dev` and open http://localhost:3000
 
-The original seed accounts use `admin1@example.com`, `student1@example.com`, `student2@example.com`, `student3@example.com`, `student4@example.com`, `adminstudent1@example.com`, `teacher1@example.com`, and `teacher2@example.com`; a newly created account gets the local-only password `password123`. `student1`, `student2`, and `adminstudent1` receive the original Section A classes, historical attendance, and assignments. `student3` and `student4` are unlinked-account candidates on a fresh seed; existing student records are preserved on reruns. `teacher2` remains unassigned, and `adminstudent1` has both admin and student roles. Never reuse these credentials outside a disposable local database. The seed command uses Node's `--env-file` option to load `.env.local` deliberately and refuses non-local API URLs.
+### Demo accounts
 
-The synthetic Stage C generator creates 120 students (`campus360-demo-s5-a-001@example.test` through section D) and four section teachers (`campus360-demo-s5-teacher-a@example.test` through D). At first creation, generated accounts share the local-only password configured in `CAMPUS360_SYNTHETIC_TEST_PASSWORD`; the generator never prints or stores that password in application rows, and reruns do not change it. Set `CAMPUS360_ADMIN_PASSWORD` to the existing local admin password and `CAMPUS360_SYNTHETIC_TEST_PASSWORD` to a chosen local-only fixture password in `.env.local` before running `pnpm db:seed:synthetic`. Keep `.env.local` untracked and never use these accounts outside local development. Existing tagged accounts are reused; the generator does not change their passwords or delete accounts.
+| Account | Password | Notes |
+|---|---|---|
+| `admin1@example.com` | `password123` | Admin |
+| `adminstudent1@example.com` | `password123` | Admin + student |
+| `teacher1@example.com` | `password123` | Teaches CS101/CS102 section A |
+| `teacher2@example.com` | `password123` | Unassigned teacher |
+| `student1@example.com`, `student2@example.com` | `password123` | Section A students |
+| `student3@example.com`, `student4@example.com` | `password123` | Not yet linked to a student record (for the "Create student record" flow) |
+| `campus360-demo-s5-a-001@example.test` … `-d-030@example.test` | `CAMPUS360_SYNTHETIC_TEST_PASSWORD` or `password123` | 120 S5 students |
+| `campus360-demo-s5-teacher-a@example.test` … `-teacher-d@example.test` | same | S5 section teachers |
 
-Use those generated student and section-teacher accounts to demonstrate the Stage C timetable and attendance workflow. The older `student1`/`student2` and `teacher1` fixtures belong to the legacy `A` offering structure, while generated schedules and attendance belong to `S5-A` through `S5-D`; the generator intentionally does not link or rewrite the legacy fixtures.
+Attendance history is generated for the 8 weeks up to the day you run the seed.
 
 ## Commands
 
-- `pnpm lint` — ESLint checks
-- `pnpm typecheck` — TypeScript checks
-- `pnpm test:run` — unit tests
-- `pnpm test:e2e` — Playwright browser tests (Chromium may need `pnpm exec playwright install chromium`)
-- `pnpm db:test` — Supabase pgTAP/RLS tests
-- `pnpm db:reset` — destructive reset of the configured database; use only with the local Supabase instance
+- `pnpm lint`, `pnpm typecheck`, `pnpm test:run` — static checks and unit tests
+- `pnpm db:mongo:init` / `pnpm db:mongo:verify` — schema setup and verification
+- `pnpm db:mongo:seed-auth` — only the 8 original accounts
+- `pnpm db:mongo:seed-demo` — all demo data
+- `pnpm db:mongo:verify-auth` — login checks (needs `pnpm dev` running)
+- `pnpm db:mongo:verify-app` — data + permission checks per role (needs `pnpm dev` running)
+- `pnpm test:e2e` — Playwright browser tests
+
+## Architecture
+
+- `scripts/mongo/schema.ts` — single source of truth for collections, `$jsonSchema` validators (with `additionalProperties: false`) and unique indexes. Change the schema here and re-run `pnpm db:mongo:init`.
+- `src/lib/data/core.ts` — Mongo access helpers and the **access scope** (`getAccess`) that replaces Postgres RLS: every query filters by the signed-in user's roles, taught offerings, enrolled offerings and own student record.
+- `src/lib/data/campus.ts`, `src/lib/academics.ts` — all reads and writes used by pages and Server Actions. Pages and actions never query MongoDB directly.
+- Writes that must be atomic (attendance marking, timetable entries, student records, profile updates, assignments) run in **MongoDB transactions** and write an `audit_events` row in the same transaction.
+- Timetable conflict checks are serialized through the `locks/timetable` document (replaces the Postgres advisory lock).
+- Unique indexes prevent duplicate attendance sessions/marks, enrolments, teaching assignments and registration numbers even under concurrent requests.
 
 ## Security boundary
 
-The profile page requires a verified Supabase user and reads only that user's row. Display-name changes go through a server action and the database `update_my_display_name` function, which writes the audit event in the same transaction. Browser code uses only the public Supabase URL and publishable key. The service-role key is used only by local demo seed scripts. Seed reruns add missing fixture rows and verify deterministic rows; they do not update or delete existing rows or reset account passwords.
-
-The first migration denies direct application-role profile mutations and direct audit writes. `record_audit_event` is private to the trusted database owner. Keep migrations as the source of truth for database changes.
-
-## Environment variables
-
-See `.env.example` for names and local placeholders. `.env.local` is ignored by Git. Do not put secrets in `NEXT_PUBLIC_*` variables or commit `.env.local`.
+See [docs/security.md](docs/security.md) for the role/data matrix. Authorization is enforced **server-side** in the data layer, not in the browser. The browser only talks to Next.js; it never receives database credentials. Public sign-up is disabled; accounts are created by the seed scripts (or a future admin screen).
 
 ## Limitations
 
-- This remains a local MVP, not a complete campus management system.
-- Academic reference tables are read-only in the UI; admin create/edit forms for departments, programs, terms, subjects, offerings, and assignments are deferred.
-- Assignment submission tracking, quizzes, marks/results, CSV import/export, account deactivation and password reset management, payments, transport/GPS, chat/marketplace, predictive analytics, and Gemini integration are not implemented. The signed-in shell has a deterministic, predefined Campus360 help guide.
-- Supabase RLS tests require Docker and a running local Supabase stack.
-- Seed accounts are synthetic and intended only for local development.
-- Hosted deployment, institutional privacy approval, backups, and recovery have not been configured.
-
-## Phase 2A academic foundation
-
-### Local seed order
-
-1. `pnpm db:reset` applies the migrations and `supabase/seed.sql` (currently empty).
-2. `pnpm db:seed:users` creates or verifies the original auth users, roles, academic structure, teaching assignments, student records, enrolments, a two-course timetable, historical attendance, and published/draft assignments. Existing fixture conflicts stop the script instead of being overwritten.
-
-The domain seed runs after auth users exist because its foreign keys reference those users. Both steps are for the disposable local database only.
-
-### Routes
-
-- `/dashboard` — role-aware student record/enrolments, teacher-assigned offerings, and admin totals.
-- `/directory` — staff-only, RLS-scoped student search and filters.
-- `/directory/[id]` — a scoped student record detail view.
-- `/admin/academics` — read-only academic structure view.
-- `/admin/students/new` — admin-only form to link an existing unlinked student account to a record.
-- `/timetable`, `/attendance`, `/assignments`, `/calendar`, and `/subjects/[offeringId]` — role-scoped Stage C timetable, attendance, coursework, calendar, and offering views.
-
-RLS remains the data boundary. Server pages and actions also check the verified user and required role. See [docs/security.md](docs/security.md) for the role/data matrix.
+- Local MVP, not a complete campus management system.
+- Marks/results, submissions, CSV import/export, account management screens, payments, transport and analytics are not implemented.
+- Hosted deployment, backups and institutional privacy approval are not configured.

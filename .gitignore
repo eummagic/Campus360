@@ -12,8 +12,6 @@ test-results/
 !.env.example
 
 # Supabase local runtime state
-supabase/.branches/
-supabase/.temp/
 
 # Tool and OS files
 *.tsbuildinfo

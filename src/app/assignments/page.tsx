@@ -8,7 +8,9 @@ import { Panel } from "@/components/ui/panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { getAssignmentDueState } from "@/lib/attendance";
 import { hasRole, requireUserWithProfile } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { listVisibleTeachingAssignments } from "@/lib/academics";
+import { getAccess } from "@/lib/data/core";
+import { listVisibleAssignments } from "@/lib/data/campus";
 import { AssignmentForm } from "./assignment-form";
 import { EditAssignmentForm } from "./edit-assignment-form";
 
@@ -36,10 +38,10 @@ export default async function AssignmentsPage() {
   const isTeacher = hasRole(roles, "teacher");
   const isStudent = hasRole(roles, "student");
   const isAdmin = hasRole(roles, "admin");
-  const supabase = await createClient();
+  const access = await getAccess(user.id);
   const [assignmentsResult, teacherAssignmentsResult] = await Promise.all([
-    supabase.from("assignments").select("id, offering_id, title, instructions, due_at, status, created_by, offering:course_offerings(id, section_code, subject:subjects(code, name), term:academic_terms(name))").order("due_at").limit(500),
-    isTeacher ? supabase.from("teaching_assignments").select("offering:course_offerings(id, section_code, subject:subjects(code, name), term:academic_terms(name))").eq("teacher_user_id", user.id) : Promise.resolve({ data: [], error: null }),
+    listVisibleAssignments(access),
+    isTeacher ? listVisibleTeachingAssignments(access, true) : Promise.resolve({ data: [], error: null }),
   ]);
   const offerings: OfferingOption[] = (teacherAssignmentsResult.data ?? []).map((row) => {
     const value = row as unknown as { offering: { id: string; section_code: string; subject: { code: string; name: string }; term: { name: string } } };

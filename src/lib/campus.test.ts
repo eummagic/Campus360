@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { getAssignmentDueState, summarizeAttendance } from "./attendance";
 import { assignmentSchema, attendanceSubmissionSchema, timetableEntrySchema } from "./validation/campus";
 
-const offeringId = "60000000-0000-0000-0000-000000000001";
-const studentRecordId = "70000000-0000-0000-0000-000000000001";
+const offeringId = "600000000000000000000001";
+const studentRecordId = "700000000000000000000001";
 
 describe("timetableEntrySchema", () => {
   it("accepts a same-day class and normalizes an empty location", () => {

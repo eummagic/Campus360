@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import { notFound, redirect } from "next/navigation";
+import { ObjectId } from "mongodb";
 import { AppShell } from "@/components/app-shell";
 import { Callout } from "@/components/ui/callout";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -11,7 +12,8 @@ import { hasRole, requireUserWithProfile } from "@/lib/auth";
 import { summarizeAttendanceCounts } from "@/lib/attendance";
 import { getSubjectColorIndex } from "@/lib/subject-color";
 import { formatCampusTime, getSessionDisplayKind } from "@/lib/timetable";
-import { createClient } from "@/lib/supabase/server";
+import { getAccess, isObjectIdString } from "@/lib/data/core";
+import { canReadOffering, getOfferingDetail, listMyOfferingMarks, listOfferingFaculty, listVisibleAssignments, listVisibleSchedule, myAttendanceSummary } from "@/lib/data/campus";
 
 export const dynamic = "force-dynamic";
 
@@ -41,48 +43,15 @@ export default async function SubjectOfferingPage({ params }: { params: Promise<
   if (!isAdmin && !isTeacher && !isStudent) redirect("/dashboard");
 
   const { offeringId } = await params;
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(offeringId)) notFound();
+  if (!isObjectIdString(offeringId)) notFound();
 
-  const supabase = await createClient();
-  let accessError: { code: string; message: string; hint: string } | null = null;
-  let studentRecordId: string | null = null;
-  let authorized = isAdmin;
+  const access = await getAccess(user.id);
+  const studentRecordId: string | null = access.studentRecordId?.toHexString() ?? null;
+  const authorized = canReadOffering(access, new ObjectId(offeringId));
 
-  if (!authorized && isTeacher) {
-    const result = await supabase.from("teaching_assignments").select("offering_id").eq("teacher_user_id", user.id).eq("offering_id", offeringId).maybeSingle();
-    if (result.error) accessError = result.error;
-    authorized = Boolean(result.data);
-  }
-
-  if (!authorized && isStudent) {
-    const record = await supabase.from("student_records").select("id").eq("user_id", user.id).maybeSingle();
-    if (record.error) accessError = record.error;
-    studentRecordId = record.data?.id ?? null;
-    if (studentRecordId) {
-      const enrolment = await supabase.from("enrolments").select("id").eq("student_record_id", studentRecordId).eq("offering_id", offeringId).maybeSingle();
-      if (enrolment.error) accessError = enrolment.error;
-      authorized = Boolean(enrolment.data);
-    }
-  } else if (isStudent) {
-    const record = await supabase.from("student_records").select("id").eq("user_id", user.id).maybeSingle();
-    if (record.error) accessError = record.error;
-    studentRecordId = record.data?.id ?? null;
-  }
-
-  if (accessError) {
-    console.error("[subject-page] access verification failed", { code: accessError.code, message: accessError.message, hint: accessError.hint });
-    return (
-      <AppShell roles={roles} displayName={displayName}>
-        <PageHeader eyebrow="Academics" title="Subject offering" description="Course details are temporarily unavailable." />
-        <Callout tone="danger" role="alert">We could not verify access to this offering. Please try again later.</Callout>
-      </AppShell>
-    );
-  }
   if (!authorized) notFound();
 
-  const offeringResult = await supabase.from("course_offerings")
-    .select("id, section_code, status, subject:subjects!inner(id, code, name, credits, program:programs!inner(code, name, department:departments!inner(code, name))), term:academic_terms!inner(name, status, starts_on, ends_on)")
-    .eq("id", offeringId).maybeSingle();
+  const offeringResult = await getOfferingDetail(access, offeringId);
   if (offeringResult.error) {
     console.error("[subject-page] offering query failed", { code: offeringResult.error.code, message: offeringResult.error.message, hint: offeringResult.error.hint });
     return (
@@ -95,42 +64,21 @@ export default async function SubjectOfferingPage({ params }: { params: Promise<
   if (!offeringResult.data) notFound();
   const offering = offeringResult.data as unknown as Offering;
 
-  const [scheduleResult, assignmentResult, teachingResult, attendanceSessions, attendanceSummaryResult] = await Promise.all([
-    supabase.from("timetable_entries").select("id, weekday, start_time, end_time, location").eq("offering_id", offeringId).order("weekday").order("start_time"),
-    supabase.from("assignments").select("id, title, instructions, due_at, status").eq("offering_id", offeringId).order("due_at").limit(100),
-    isAdmin || isTeacher
-      ? supabase.from("teaching_assignments").select("teacher_user_id").eq("offering_id", offeringId)
-      : Promise.resolve({ data: [], error: null }),
-    isStudent && studentRecordId
-      ? supabase.from("attendance_sessions").select("id, session_date").eq("offering_id", offeringId).order("session_date", { ascending: false }).limit(501)
-      : Promise.resolve({ data: [], error: null }),
-    isStudent && studentRecordId
-      ? supabase.rpc("my_attendance_summary")
-      : Promise.resolve({ data: [], error: null }),
+  const [scheduleResult, assignmentResult, facultyResult, marksResult, attendanceSummaryResult] = await Promise.all([
+    listVisibleSchedule(access, { offeringIds: [offeringId] }),
+    listVisibleAssignments(access, { offering_id: new ObjectId(offeringId) }, 100),
+    isAdmin || isTeacher ? listOfferingFaculty(access, offeringId) : Promise.resolve({ data: [], error: null }),
+    isStudent && studentRecordId ? listMyOfferingMarks(access, offeringId) : Promise.resolve({ data: [], error: null }),
+    isStudent && studentRecordId ? myAttendanceSummary(access) : Promise.resolve({ data: [], error: null }),
   ]);
 
-  for (const [label, error] of [["schedule", scheduleResult.error], ["assignments", assignmentResult.error], ["teaching assignments", teachingResult.error], ["attendance sessions", attendanceSessions.error], ["attendance summary", attendanceSummaryResult.error]] as const) {
-    if (error) console.error(`[subject-page] ${label} query failed`, { code: error.code, message: error.message, hint: error.hint });
-  }
-
-  const teachingIds = [...new Set((teachingResult.data ?? []).map((row) => row.teacher_user_id))];
-  const facultyResult = (isAdmin || isTeacher) && teachingIds.length
-    ? await supabase.from("profiles").select("id, display_name").in("id", teachingIds).order("display_name")
-    : { data: [], error: null };
-  if (facultyResult.error) console.error("[subject-page] faculty display names query failed", { code: facultyResult.error.code, message: facultyResult.error.message, hint: facultyResult.error.hint });
-
-  const schedules = (scheduleResult.data ?? []) as Array<{ id: string; weekday: number; start_time: string; end_time: string; location: string | null }>;
-  const assignments = (assignmentResult.data ?? []) as Array<{ id: string; title: string; instructions: string; due_at: string; status: "draft" | "published" }>;
-  const sessionRows = (attendanceSessions.data ?? []) as Array<{ id: string; session_date: string }>;
-  const sessionDates = new Map(sessionRows.map((session) => [session.id, session.session_date]));
-  const marksResult = isStudent && studentRecordId && sessionRows.length
-    ? await supabase.from("attendance_records").select("id, session_id, status").eq("student_record_id", studentRecordId).eq("offering_id", offeringId).in("session_id", sessionRows.map((session) => session.id))
-    : { data: [], error: null };
-  if (marksResult.error) console.error("[subject-page] own attendance marks query failed", { code: marksResult.error.code, message: marksResult.error.message, hint: marksResult.error.hint });
-  if (attendanceSessions.error) console.error("[subject-page] attendance sessions query failed", { code: attendanceSessions.error.code, message: attendanceSessions.error.message, hint: attendanceSessions.error.hint });
-  if (attendanceSummaryResult.error) console.error("[subject-page] own attendance summary query failed", { code: attendanceSummaryResult.error.code, message: attendanceSummaryResult.error.message, hint: attendanceSummaryResult.error.hint });
-  const marks = (marksResult.data ?? []) as Array<{ id: string; session_id: string; status: "present" | "absent" | "late" }>;
-  const summaryRows = (attendanceSummaryResult.data ?? []) as Array<{ offering_id: string; present_count: number; absent_count: number; late_count: number }>;
+  const schedules = scheduleResult.data;
+  const assignments = assignmentResult.data;
+  const marks = marksResult.data;
+  const sessionRows = marks;
+  const attendanceSessions = { error: null };
+  const sessionDates = new Map(marks.map((mark) => [mark.session_id, mark.session_date]));
+  const summaryRows = attendanceSummaryResult.data;
   const offeringSummary = summaryRows.find((row) => row.offering_id === offeringId);
   const attendance = offeringSummary
     ? summarizeAttendanceCounts(offeringSummary.present_count, offeringSummary.absent_count, offeringSummary.late_count)

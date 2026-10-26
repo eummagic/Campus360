@@ -5,7 +5,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { hasRole, requireUserWithProfile } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { getAccess } from "@/lib/data/core";
+import { listActiveOfferingsForAdmin, listVisibleSchedule } from "@/lib/data/campus";
 import { timeToMinutes, type TimetableDisplayEntry } from "@/lib/timetable";
 import { deleteTimetableEntry } from "./actions";
 import { TimetableEntryForm } from "./timetable-entry-form";
@@ -42,27 +43,14 @@ function describeDatabaseError(error: unknown) {
 }
 
 export default async function TimetablePage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const { roles, displayName } = await requireUserWithProfile();
+  const { user, roles, displayName } = await requireUserWithProfile();
   if (!roles.some(({ role }) => role === "admin" || role === "teacher" || role === "student")) redirect("/dashboard");
   const query = await searchParams;
   const isAdmin = hasRole(roles, "admin");
-  const supabase = await createClient();
-  const loadAllScheduleRows = async () => {
-    const allRows: TimetableRow[] = [];
-    for (let offset = 0; ; offset += 500) {
-      const page = await supabase.from("timetable_entries")
-        .select("id, weekday, start_time, end_time, location, offering:course_offerings(id, section_code, term:academic_terms(name, status), subject:subjects(code, name))")
-        .order("weekday").order("start_time").order("id").range(offset, offset + 499);
-      if (page.error) return { data: null, error: page.error };
-      allRows.push(...(page.data as unknown as TimetableRow[]));
-      if (page.data.length < 500) return { data: allRows, error: null };
-    }
-  };
+  const access = await getAccess(user.id);
   const [scheduleResult, offeringsResult] = await Promise.all([
-    loadAllScheduleRows(),
-    isAdmin
-      ? supabase.from("course_offerings").select("id, section_code, term:academic_terms!inner(name, status), subject:subjects(code, name)").eq("status", "active").eq("term.status", "active").order("section_code")
-      : Promise.resolve({ data: [], error: null }),
+    listVisibleSchedule(access),
+    isAdmin ? listActiveOfferingsForAdmin(access) : Promise.resolve({ data: [], error: null }),
   ]);
   if (scheduleResult.error) {
     console.error(`[timetable] schedule query failed ${JSON.stringify(describeDatabaseError(scheduleResult.error))}`);

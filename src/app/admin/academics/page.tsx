@@ -2,29 +2,25 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { hasRole, requireUserWithProfile } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { getAccess } from "@/lib/data/core";
+import { adminAcademicStructure } from "@/lib/data/campus";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminAcademicsPage() {
-  const { roles, displayName } = await requireUserWithProfile();
+  const { user, roles, displayName } = await requireUserWithProfile();
   if (!hasRole(roles, "admin")) redirect("/dashboard");
 
-  const supabase = await createClient();
-  const [departments, programs, terms, subjects, offerings, assignments] = await Promise.all([
-    supabase.from("departments").select("id, code, name, status").order("code"),
-    supabase.from("programs").select("id, code, name, status, department:departments(code)").order("code"),
-    supabase.from("academic_terms").select("id, name, status, starts_on, ends_on").order("name"),
-    supabase.from("subjects").select("id, code, name, credits, status, program:programs(code)").order("code"),
-    supabase.from("course_offerings").select("id, section_code, status, term:academic_terms(name), subject:subjects(code, name)").order("section_code"),
-    supabase.from("teaching_assignments").select("id, teacher_user_id, offering:course_offerings(section_code, subject:subjects(code))"),
-  ]);
-  const teacherIds = [...new Set((assignments.data ?? []).map((item) => item.teacher_user_id))];
-  const teacherProfiles = teacherIds.length
-    ? await supabase.from("profiles").select("id, display_name").in("id", teacherIds)
-    : { data: [], error: null };
-  const teacherNames = new Map((teacherProfiles.data ?? []).map((profile) => [profile.id, profile.display_name]));
-  const loadError = departments.error ?? programs.error ?? terms.error ?? subjects.error ?? offerings.error ?? assignments.error ?? teacherProfiles.error;
+  const structure = await adminAcademicStructure(await getAccess(user.id));
+  const data = structure.data;
+  const departments = { data: data?.departments ?? [] };
+  const programs = { data: data?.programs ?? [] };
+  const terms = { data: data?.terms ?? [] };
+  const subjects = { data: data?.subjects ?? [] };
+  const offerings = { data: data?.offerings ?? [] };
+  const assignments = { data: data?.assignments ?? [] };
+  const teacherNames = new Map((data?.teacherProfiles ?? []).map((profile) => [profile.id, profile.display_name]));
+  const loadError = structure.error;
 
   return (
     <AppShell roles={roles} displayName={displayName}>

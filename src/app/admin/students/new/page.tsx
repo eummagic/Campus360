@@ -2,7 +2,9 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { hasRole, requireUserWithProfile } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { listUnlinkedStudentUsers } from "@/lib/academics";
+import { getAccess } from "@/lib/data/core";
+import { listPrograms } from "@/lib/data/campus";
 import { CreateStudentForm } from "./create-student-form";
 
 export const dynamic = "force-dynamic";
@@ -10,13 +12,13 @@ export const dynamic = "force-dynamic";
 type UnlinkedStudent = { user_id: string; display_name: string; contact_email: string | null };
 
 export default async function NewStudentPage() {
-  const { roles, displayName } = await requireUserWithProfile();
+  const { user, roles, displayName } = await requireUserWithProfile();
   if (!hasRole(roles, "admin")) redirect("/dashboard");
 
-  const supabase = await createClient();
+  const access = await getAccess(user.id);
   const [candidateResult, programResult] = await Promise.all([
-    supabase.rpc("list_unlinked_student_users"),
-    supabase.from("programs").select("id, code, name").order("code"),
+    listUnlinkedStudentUsers(access),
+    listPrograms(),
   ]);
   const candidates = (candidateResult.data ?? []) as UnlinkedStudent[];
   const hasError = candidateResult.error || programResult.error;

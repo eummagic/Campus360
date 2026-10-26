@@ -5,8 +5,9 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { requireUserWithProfile, hasRole, isStaff } from "@/lib/auth";
-import { listEnrolmentsForRecord } from "@/lib/academics";
-import { createClient } from "@/lib/supabase/server";
+import { buildDirectoryRows, listEnrolmentsForRecord, listUnlinkedStudentUsers, listVisibleTeachingAssignments } from "@/lib/academics";
+import { getAccess } from "@/lib/data/core";
+import { adminCounts, countEnrolmentsByOffering, listActiveTerms } from "@/lib/data/campus";
 
 export const dynamic = "force-dynamic";
 
@@ -63,55 +64,47 @@ function MetricLink({ href, label, value, detail }: { href: string; label: strin
 
 export default async function DashboardPage() {
   const { user, roles, displayName } = await requireUserWithProfile();
-  const supabase = await createClient();
+  const access = await getAccess(user.id);
   const isStudent = hasRole(roles, "student");
   const isTeacher = hasRole(roles, "teacher");
   const isAdmin = hasRole(roles, "admin");
   const visibleRoles = [...new Set(roles.map(({ role }) => roleNames[role]))];
 
   const [termResult, teacherResult, ownRecordResult] = await Promise.all([
-    supabase.from("academic_terms").select("id, name, starts_on, ends_on").eq("status", "active").order("starts_on", { ascending: true }),
-    isTeacher
-      ? supabase.from("teaching_assignments").select("id, offering:course_offerings(id, section_code, subject:subjects(code, name), term:academic_terms(name))").eq("teacher_user_id", user.id)
-      : Promise.resolve({ data: [], error: null }),
-    isStudent
-      ? supabase.from("student_directory").select("student_record_id, registration_number, record_status, program_code, program_name, department_name").eq("user_id", user.id).maybeSingle()
+    listActiveTerms(),
+    isTeacher ? listVisibleTeachingAssignments(access, true) : Promise.resolve({ data: [], error: null }),
+    isStudent && access.studentRecordId
+      ? buildDirectoryRows({ _id: access.studentRecordId }, 1)
+          .then((rows) => ({ data: rows[0] ?? null, error: null }))
+          .catch(() => ({ data: null, error: { code: "DB_ERROR", message: "Unable to load record", hint: "" } }))
       : Promise.resolve({ data: null, error: null }),
   ]);
 
   const teacherOfferings = (teacherResult.data ?? []) as unknown as OfferingRow[];
   const offeringIds = teacherOfferings.map((row) => row.offering.id);
   const teacherEnrolmentsResult = offeringIds.length
-    ? await supabase.from("enrolments").select("offering_id").in("offering_id", offeringIds)
-    : { data: [], error: null };
-  const enrolmentCounts: Record<string, number> = {};
-  for (const row of teacherEnrolmentsResult.data ?? []) {
-    enrolmentCounts[row.offering_id] = (enrolmentCounts[row.offering_id] ?? 0) + 1;
-  }
+    ? await countEnrolmentsByOffering(offeringIds)
+    : { data: {} as Record<string, number>, error: null };
+  const enrolmentCounts: Record<string, number> = teacherEnrolmentsResult.data;
   const totalTeacherEnrolments = Object.values(enrolmentCounts).reduce((total, count) => total + count, 0);
 
   const ownRecord = ownRecordResult.data;
   const ownEnrolmentsResult = ownRecord
-    ? await listEnrolmentsForRecord(ownRecord.student_record_id)
+    ? await listEnrolmentsForRecord(access, ownRecord.student_record_id)
     : { rows: [], error: null };
   const ownEnrolments = ownEnrolmentsResult.rows as unknown as StudentEnrolment[];
   const recordedCredits = ownEnrolments.reduce((total, enrolment) => total + (enrolment.offering.subject.credits ?? 0), 0);
   const creditCount = ownEnrolments.filter((enrolment) => enrolment.offering.subject.credits != null).length;
 
+  const countsResult = isAdmin ? await adminCounts(access) : null;
+  const counts = countsResult?.data ?? null;
   const adminTotals = isAdmin
-    ? await Promise.all([
-        supabase.from("departments").select("id", { count: "exact", head: true }),
-        supabase.from("programs").select("id", { count: "exact", head: true }),
-        supabase.from("subjects").select("id", { count: "exact", head: true }),
-        supabase.from("course_offerings").select("id", { count: "exact", head: true }),
-        supabase.from("teaching_assignments").select("id", { count: "exact", head: true }),
-        supabase.from("student_records").select("id", { count: "exact", head: true }),
-        supabase.from("student_directory").select("student_record_id", { count: "exact", head: true }).eq("record_status", "active"),
-        supabase.from("student_directory").select("student_record_id", { count: "exact", head: true }).eq("record_status", "inactive"),
-        supabase.from("student_directory").select("student_record_id", { count: "exact", head: true }).eq("record_status", "graduated"),
-      ])
+    ? [
+        counts?.departments, counts?.programs, counts?.subjects, counts?.offerings, counts?.teaching,
+        counts?.records, counts?.active, counts?.inactive, counts?.graduated,
+      ].map((count) => ({ count: count ?? null, error: countsResult?.error ?? null }))
     : null;
-  const candidatesResult = isAdmin ? await supabase.rpc("list_unlinked_student_users") : null;
+  const candidatesResult = isAdmin ? await listUnlinkedStudentUsers(access) : null;
 
   const activeTerms = termResult.data ?? [];
   const termLabel = termResult.error

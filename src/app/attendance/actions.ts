@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { hasRole, requireUserWithProfile } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { getAccess } from "@/lib/data/core";
+import { markAttendanceForSession } from "@/lib/data/campus";
 import { attendanceSubmissionSchema } from "@/lib/validation/campus";
 
 export type AttendanceActionResult = { ok: true } | { ok: false; message: string };
@@ -11,7 +12,7 @@ export async function markAttendance(
   _previous: AttendanceActionResult | null,
   formData: FormData,
 ): Promise<AttendanceActionResult> {
-  const { roles } = await requireUserWithProfile();
+  const { user, roles } = await requireUserWithProfile();
   if (!hasRole(roles, "teacher")) return { ok: false, message: "Only assigned teachers can mark attendance." };
 
   let submittedRecords: unknown;
@@ -27,13 +28,8 @@ export async function markAttendance(
   });
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Check each attendance status." };
 
-  const supabase = await createClient();
-  const { error } = await supabase.rpc("mark_attendance_for_session", {
-    p_timetable_entry_id: parsed.data.timetableEntryId,
-    p_session_date: parsed.data.sessionDate,
-    p_records: parsed.data.records.map((record) => ({ student_record_id: record.studentRecordId, status: record.status })),
-  });
-  if (error) return { ok: false, message: "Could not save attendance. Confirm the class date and assigned roster." };
+  const result = await markAttendanceForSession(await getAccess(user.id), parsed.data);
+  if (!result.ok) return { ok: false, message: "Could not save attendance. Confirm the class date and assigned roster." };
 
   revalidatePath("/attendance");
   revalidatePath("/calendar");
