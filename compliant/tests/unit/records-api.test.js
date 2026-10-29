@@ -27,6 +27,15 @@ test("API helper distinguishes empty results, missing records, authorization and
     [503, "Student information is temporarily unavailable.", "Student information is temporarily unavailable."],
   ]) {
     globalThis.fetch = async () => Response.json({ error }, { status });
-    await assert.rejects(api("/api/directory"), { message: expected });
+    await assert.rejects(api("/api/directory"), { message: expected, status });
+  }
+});
+
+test("API helper preserves HTTP status when an error response has no JSON body", async (t) => {
+  const original = globalThis.fetch;
+  t.after(() => { globalThis.fetch = original; });
+  for (const status of [401, 403, 404, 503]) {
+    globalThis.fetch = async () => ({ status, ok: false, async json() { throw new SyntaxError("invalid JSON"); } });
+    await assert.rejects(api("/api/admin/academics/overview"), { status });
   }
 });

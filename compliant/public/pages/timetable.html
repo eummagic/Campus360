@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Timetable — Campus360</title>
+    <link rel="stylesheet" href="/css/app.css">
+    <script type="module" src="/js/timetable.js"></script>
+  </head>
+  <body>
+    <main>
+      <section class="panel wide timetable-page" aria-labelledby="heading">
+        <nav class="page-links" aria-label="Page navigation">
+          <a class="subtle-link" href="/">Back to portal</a>
+          <a class="subtle-link" href="/pages/academics.html">Academic overview</a>
+        </nav>
+        <p class="eyebrow">Campus360 · Academics</p>
+        <h1 id="heading">Timetable</h1>
+        <p class="muted">View timetable readiness for the configured academic scope.</p>
+
+        <section class="timetable-card" aria-labelledby="availability-heading">
+          <h2 id="availability-heading">Schedule availability</h2>
+          <div id="timetable-status" class="notice timetable-status" role="status" aria-live="polite" aria-atomic="true">
+            <strong id="timetable-state-title">Checking timetable configuration…</strong>
+            <p id="timetable-state-detail">Loading academic availability from the current server.</p>
+          </div>
+          <div class="timetable-actions">
+            <button id="timetable-retry" type="button" class="secondary" hidden>Check again</button>
+            <a id="portal-link" class="subtle-link" href="/" hidden>Return to portal and sign in</a>
+          </div>
+        </section>
+
+        <section class="timetable-calendar" aria-labelledby="calendar-heading">
+          <h2 id="calendar-heading">Weekly calendar</h2>
+          <p class="muted">No timetable entries are displayed. This backend does not yet expose a timetable listing API, so the schedule cannot be confirmed empty.</p>
+          <ol class="calendar-days" aria-label="Weekday calendar layout">
+            <li>Monday</li><li>Tuesday</li><li>Wednesday</li><li>Thursday</li>
+            <li>Friday</li><li>Saturday</li><li>Sunday</li>
+          </ol>
+          <p class="calendar-note">Calendar layout only; no class times or events have been invented.</p>
+        </section>
+      </section>
+    </main>
+  </body>
+</html>
