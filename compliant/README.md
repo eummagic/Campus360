@@ -3,13 +3,86 @@
 Plain HTML/CSS/browser JavaScript, Express, Node.js and MongoDB's native driver.
 No frontend build step, Next.js, React, TypeScript, Mongoose or authentication framework.
 
+## Read-only academic overview
+
+After starting the updated application with `npm run start:demo` (or `start:mongo`),
+sign in as an administrator in the configured `ADMIN_SCOPE` and follow **Academic
+overview**, or open `/pages/academics.html`. An already-running process must be
+restarted to load the new server routes; no database setup is needed.
+
+`GET /api/admin/academics/overview` requires a verified session and the same exact
+administrator scope policy as student administration. It reads departments and
+programs, including inactive reference records, and reports whether other academic
+collections exist. Existing collections are not evidence that their features are
+migrated. Missing required collections return a generic 503; absent optional
+collections are explicitly marked “Not provisioned.” Nothing initializes or repairs
+schema, indexes, accounts or records. Reference collections have no scope field;
+they are shared application data, not tenant-isolated datasets.
+
+The overview is limited to 500 departments and 500 programs; exceeding this limit
+returns unavailable rather than silently omitting records. The public HTML shell
+contains no academic records; protected data comes only from the authenticated API.
+Focused tests use synthetic repositories/fake collections and do not establish
+live-database behavior:
+
+```powershell
+node --test tests/unit/academic.test.js tests/integration/academics.test.js
+```
+
 ## Local startup
 
-For the proposed one-time durable local setup, see [LOCAL_DEMO_SETUP.md](LOCAL_DEMO_SETUP.md).
+### Directory, student details, and display-name editing
+
+After restarting the **application process** with the updated code, administrators
+can follow **Student directory** in the portal (`/pages/directory.html`). Search
+matches literal substrings of display names or registration numbers, case
+insensitively. Status and program filters combine with search. Results are ordered
+by registration number, 50 per page, with offsets capped at 1000. The directory
+includes only student-role records in the configured administrator scope; a teacher
+role alone does not grant access. Program choices use the existing academic API.
+
+Click a directory name for `/pages/student.html?id=RECORD_ID`. Students use
+**My academic details and enrolments** to open their own record. Detail reads require
+the configured student scope or administrator scope, and students cannot open other
+records. Missing enrolment/offering/subject/term collections are reported explicitly;
+the page never initializes them. At most 100 enrolments are supported per detail
+view; larger or inconsistent datasets return unavailable rather than partial data.
+
+Every signed-in user can follow **Edit my display name** (`/pages/profile.html`).
+Only `displayName` is accepted: trimmed, 1–120 characters, without control characters.
+`PATCH /api/profile` requires the current session, exact origin, JSON and its CSRF
+token. The signed-in user's profile and an audit event containing the previous/new
+name commit together in a sequential transaction. An unchanged name is a no-op.
+Email, user name in legacy identity documents, roles and academic identifiers are
+not changed. The profile display name is authoritative for the compliant UI.
+
+APIs added: `GET /api/directory`, `GET /api/directory/:recordId`,
+`GET /api/profile`, `PATCH /api/profile`. Query fields other than the documented
+directory filters (`q`, `status`, `programId`, `offset`) are rejected. No detail or
+profile API accepts a browser-supplied identity or scope.
+
+Focused Stage 2 checks (no database connection):
+
+```powershell
+node --test tests/unit/records.test.js tests/integration/records.test.js
+```
+
+The fake database verifies query intent, mapping and transaction control flow,
+including rollback after an audit failure. It does not prove actual MongoDB
+atomicity or aggregation behavior. Subsequently, the live demo verified administrator
+access to the academic overview (department and BCA program), the student directory,
+and student details. Profile editing has automated coverage; live profile-write
+persistence has not been verified.
+
+For the one-time durable local setup, see [LOCAL_DEMO_SETUP.md](LOCAL_DEMO_SETUP.md).
 `npm run setup:demo` prints a dry-run plan only. Persistent setup requires the
-explicit `--execute --database ...` command documented there; it has not been run.
+explicit `--execute --database ...` command documented there. Durable local MongoDB
+demo setup completed successfully.
 After approved setup, `npm run start:demo` reads only the ignored `.env.demo` inside
 `compliant/`. No default startup performs initialization.
+
+Academic schema preparation remains incomplete and fail-closed; it has not
+provisioned additional academic collections.
 
 `npm start` serves the database-free foundation. Authentication is unavailable in that mode.
 

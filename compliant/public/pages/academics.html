@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Academic overview — Campus360</title>
+    <link rel="stylesheet" href="/css/app.css">
+    <script type="module" src="/js/academics.js"></script>
+  </head>
+  <body>
+    <main><section class="panel wide" aria-labelledby="heading">
+      <a class="subtle-link" href="/">Back to portal / sign in</a>
+      <p class="eyebrow">Campus360 · Administration</p>
+      <h1 id="heading">Academic overview</h1>
+      <p class="muted">Read-only departments and programs. Reference data is shared across the application; administrator access requires the configured role scope.</p>
+      <p class="notice" id="status" role="status" aria-live="polite">Loading academic data…</p>
+      <div id="overview" hidden>
+        <h2>Departments</h2>
+        <div class="table-scroll"><table><caption class="muted">Configured departments</caption><thead><tr><th scope="col">Code</th><th scope="col">Name</th><th scope="col">Status</th></tr></thead><tbody id="departments"></tbody></table></div>
+        <h2>Programs</h2>
+        <div class="table-scroll"><table><caption class="muted">Configured programs and their departments</caption><thead><tr><th scope="col">Code</th><th scope="col">Name</th><th scope="col">Department</th><th scope="col">Status</th></tr></thead><tbody id="programs"></tbody></table></div>
+        <h2>Other academic collections</h2>
+        <p class="muted">Availability only; these features are not included in this overview. No records are created by opening this page.</p>
+        <ul id="availability"></ul>
+      </div>
+    </section></main>
+  </body>
+</html>

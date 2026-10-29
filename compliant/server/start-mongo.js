@@ -5,6 +5,11 @@ import { createMongoAuthRepository } from "./db/auth-repository.js";
 import { createMongoStudentRepository } from "./db/student-repository.js";
 import { createStudentService } from "./students/service.js";
 import { createSessionCookies } from "./auth/session.js";
+import { createMongoAcademicRepository } from "./db/academic-repository.js";
+import { createAcademicService } from "./academics/service.js";
+import { createDirectoryService } from "./students/directory-service.js";
+import { createProfileService } from "./profile/service.js";
+import { createMongoProfileRepository } from "./db/profile-repository.js";
 
 // Explicit opt-in startup. No dotenv, root configuration, implicit schema writes,
 // default database, demo identities, or automatic account provisioning.
@@ -29,8 +34,12 @@ try {
   connection = createMongoConnection({ uri: process.env.MONGODB_URI, database: process.env.MONGODB_DB });
   const handle = await connection.connect();
   const authService = createAuthService({ repository: createMongoAuthRepository(handle) });
-  const studentService = createStudentService({ repository: createMongoStudentRepository({ ...handle, adminScope }) });
-  const app = createApp({ authService, studentService, adminScope, authOrigin: origin, allowInsecureLoopback: insecure });
+  const studentRepository = createMongoStudentRepository({ ...handle, adminScope });
+  const studentService = createStudentService({ repository: studentRepository });
+  const directoryService = createDirectoryService({ repository: studentRepository, adminScope });
+  const profileService = createProfileService({ repository: createMongoProfileRepository(handle) });
+  const academicService = createAcademicService({ repository: createMongoAcademicRepository({ ...handle, adminScope }), adminScope });
+  const app = createApp({ authService, studentService, academicService, directoryService, profileService, adminScope, authOrigin: origin, allowInsecureLoopback: insecure });
   server = await new Promise((resolve, reject) => {
     const listener = app.listen(Number(url.port || 80), url.hostname === "[::1]" ? "::1" : url.hostname, () => resolve(listener));
     listener.once("error", reject);

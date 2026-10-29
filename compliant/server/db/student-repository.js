@@ -36,6 +36,64 @@ export function createMongoStudentRepository({ db, client, ObjectId, adminScope 
     };
   }
   return Object.freeze({
+    async searchDirectory(actorId, filters) {
+      await admin(actorId);
+      const match = {};
+      if (filters.status) match.status = filters.status;
+      if (filters.programId) match.program_id = id(filters.programId);
+      const pipeline = [
+        { $match: match },
+        { $lookup: { from: "user_roles", localField: "user_id", foreignField: "user_id", as: "roles" } },
+        { $match: { roles: { $elemMatch: { role: "student", scope: adminScope } } } },
+        { $lookup: { from: "profiles", localField: "user_id", foreignField: "_id", as: "profile" } },
+      ];
+      if (filters.q) {
+        const pattern = filters.q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        pipeline.push({ $match: { $or: [
+          { registration_number: { $regex: pattern, $options: "i" } },
+          { "profile.display_name": { $regex: pattern, $options: "i" } },
+        ] } });
+      }
+      pipeline.push({ $sort: { registration_number: 1, _id: 1 } }, { $skip: filters.offset },
+        { $limit: filters.limit + 1 }, { $project: { profile: 0, roles: 0 } });
+      const records = await db.collection("student_records").aggregate(pipeline, { maxTimeMS: 3000 }).toArray();
+      const students = [];
+      for (const record of records.slice(0, filters.limit)) students.push(await view(record));
+      return { students, hasMore: records.length > filters.limit && filters.offset < 1000, offset: filters.offset };
+    },
+    async getStudentDetail(actorId, recordId) {
+      const actor = id(actorId);
+      const isAdmin = Boolean(await db.collection("user_roles").findOne({ user_id: actor, role: "admin", scope: adminScope }));
+      const isStudent = Boolean(await db.collection("user_roles").findOne({ user_id: actor, role: "student", scope: adminScope }));
+      if (!isAdmin && !isStudent) throw new StudentError(403, "Not authorized.");
+      const filter = { _id: id(recordId), ...(isAdmin ? {} : { user_id: actor }) };
+      const record = await db.collection("student_records").findOne(filter);
+      if (!record || !await db.collection("user_roles").findOne({ user_id: record.user_id, role: "student", scope: adminScope })) {
+        throw new StudentError(404, "Student record not found.");
+      }
+      const student = await view(record);
+      const required = ["enrolments", "course_offerings", "subjects", "academic_terms"];
+      const infos = await db.listCollections({ name: { $in: required } }, { nameOnly: true }).toArray();
+      const missingCollections = required.filter((name) => !infos.some((info) => info.name === name && info.type === "collection"));
+      if (missingCollections.length) return { student, enrolments: [], enrolmentStatus: "not_provisioned", missingCollections };
+      const rows = await db.collection("enrolments").find({ student_record_id: record._id })
+        .sort({ enrolled_at: 1, _id: 1 }).limit(101).toArray();
+      if (rows.length > 100) throw new Error("Enrolment capacity exceeded.");
+      const enrolments = [];
+      for (const row of rows) {
+        hex(row.offering_id);
+        const offering = await db.collection("course_offerings").findOne({ _id: row.offering_id });
+        if (!offering) throw new Error("Unlinked enrolment.");
+        hex(offering.subject_id); hex(offering.term_id);
+        const subject = await db.collection("subjects").findOne({ _id: offering.subject_id });
+        const term = await db.collection("academic_terms").findOne({ _id: offering.term_id });
+        if (!subject || !term || !(row.enrolled_at instanceof Date)) throw new Error("Unlinked offering.");
+        enrolments.push({ id: hex(row._id), offeringId: hex(offering._id), section: offering.section_code,
+          subjectCode: subject.code, subjectName: subject.name, credits: subject.credits,
+          term: term.name, enrolledAt: row.enrolled_at.toISOString() });
+      }
+      return { student, enrolments, enrolmentStatus: "available", missingCollections: [] };
+    },
     async createStudent(actorId, input) {
       const actor = id(actorId);
       const programId = id(input.programId);

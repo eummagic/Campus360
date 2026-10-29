@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Student directory — Campus360</title><link rel="stylesheet" href="/css/app.css"><script type="module" src="/js/directory.js"></script></head>
+<body><main><section class="panel wide"><a class="subtle-link" href="/">Back to portal / sign in</a><h1>Student directory</h1>
+<p class="muted">Administrator access in the configured scope only. Search names or registration numbers. Up to 50 results per page.</p>
+<form id="filters" class="form-grid"><label>Search<input name="q" maxlength="120"></label><label>Status<select name="status"><option value="">All statuses</option><option>active</option><option>inactive</option><option>graduated</option></select></label><label>Program<select name="programId" id="program-filter"><option value="">All programs</option></select></label><button>Apply filters</button></form>
+<p class="notice" id="status" role="status" aria-live="polite"></p>
+<div class="table-scroll"><table><caption>Students within your administrator scope</caption><thead><tr><th scope="col">Name / details</th><th scope="col">Registration</th><th scope="col">Program</th><th scope="col">Status</th></tr></thead><tbody id="results"></tbody></table></div>
+<p><button id="previous" class="secondary" disabled>Previous</button> <button id="next" class="secondary" disabled>Next</button></p>
+</section></main></body></html>

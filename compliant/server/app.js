@@ -3,11 +3,13 @@ import { fileURLToPath } from "node:url";
 import { healthHandler } from "./handlers/health.js";
 import { createAuthRouter } from "./routes/auth.js";
 import { createStudentRouter } from "./routes/students.js";
+import { createAcademicRouter } from "./routes/academics.js";
+import { createRecordRouter } from "./routes/records.js";
 
 // Resolve relative to this module so startup does not depend on the shell's cwd.
 const publicDirectory = fileURLToPath(new URL("../public/", import.meta.url));
 
-export function createApp({ authService, studentService, adminScope = null,
+export function createApp({ authService, studentService, academicService, directoryService, profileService, adminScope = null,
   authOrigin = "http://127.0.0.1:3001", allowInsecureLoopback = false } = {}) {
   const app = express();
   app.disable("x-powered-by");
@@ -23,6 +25,8 @@ export function createApp({ authService, studentService, adminScope = null,
   app.use("/api/auth", createAuthRouter({
     service: authService, origin: authOrigin, allowInsecureLoopback,
   }));
+  app.use("/api/admin/academics", createAcademicRouter({ authService, academicService, adminScope }));
+  app.use("/api", createRecordRouter({ authService, directoryService, profileService, origin: authOrigin }));
   if (authService && studentService) {
     app.use("/api", createStudentRouter({ authService, studentService, origin: authOrigin, adminScope }));
   }

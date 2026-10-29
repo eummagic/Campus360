@@ -27,7 +27,10 @@
           <button class="secondary" type="button" id="logout">Sign out</button>
         </header>
         <p class="notice" id="portal-status" role="status" aria-live="polite"></p>
+        <p><a class="subtle-link" href="/pages/profile.html">Edit my display name</a></p>
         <section id="admin-panel" hidden aria-labelledby="add-heading">
+          <a class="subtle-link" href="/pages/academics.html">Academic overview</a>
+          <a class="subtle-link" href="/pages/directory.html">Student directory</a>
           <div class="section-heading"><h2 id="add-heading">Add a student</h2><span class="badge">Administrator</span></div>
           <p class="muted">Create a student account and academic record together. Share the initial password directly with the student.</p>
           <form id="student-form" class="form-grid">
@@ -45,6 +48,7 @@
           <p id="empty-students" class="muted" hidden>No students have been added yet.</p>
         </section>
         <section id="student-panel" hidden aria-labelledby="profile-heading">
+          <a class="subtle-link" href="/pages/student.html">My academic details and enrolments</a>
           <div class="section-heading"><h2 id="profile-heading">My student profile</h2><span class="badge">Student</span></div>
           <p class="muted">Your account and academic registration details.</p>
           <dl id="student-profile" class="profile-grid"></dl>
