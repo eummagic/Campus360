@@ -1,0 +1,17 @@
+{
+  "name": "campus360-compliant",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server/start.js",
+    "start:mongo": "node server/start-mongo.js",
+    "start:demo": "node --env-file=.env.demo server/start-mongo.js",
+    "setup:demo": "node scripts/setup-local-demo.js",
+    "test": "node --test",
+    "test:unit": "node --test tests/unit/passwords.test.js tests/unit/schema.test.js tests/unit/health.test.js tests/unit/session.test.js tests/unit/throttle.test.js tests/unit/auth-service.test.js"
+  },
+  "dependencies": {
+    "express": "5.3.0",
+    "mongodb": "7.7.0"
+  }
+}

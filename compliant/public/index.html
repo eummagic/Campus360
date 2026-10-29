@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Campus360</title>
+    <link rel="stylesheet" href="/css/app.css">
+    <script type="module" src="/js/app.js"></script>
+  </head>
+  <body>
+    <main>
+      <section class="panel" id="login-view" aria-labelledby="welcome-heading">
+        <p class="eyebrow">Campus360</p>
+        <h1 id="welcome-heading">Your campus, connected.</h1>
+        <p class="muted">Sign in to your campus account.</p>
+        <form id="login-form">
+          <label>Email address<input name="email" type="email" autocomplete="username" maxlength="320" required></label>
+          <label>Password<input name="password" type="password" autocomplete="current-password" maxlength="128" required></label>
+          <button type="submit">Sign in</button>
+        </form>
+        <p class="notice" id="login-status" role="status" aria-live="polite"></p>
+        <a class="subtle-link" href="/health">Server health</a>
+      </section>
+      <section class="panel wide" id="portal-view" hidden aria-label="Campus portal">
+        <header class="portal-header">
+          <div><p class="eyebrow">Campus360</p><h1 id="greeting">Your campus portal</h1><p class="muted" id="identity"></p></div>
+          <button class="secondary" type="button" id="logout">Sign out</button>
+        </header>
+        <p class="notice" id="portal-status" role="status" aria-live="polite"></p>
+        <section id="admin-panel" hidden aria-labelledby="add-heading">
+          <div class="section-heading"><h2 id="add-heading">Add a student</h2><span class="badge">Administrator</span></div>
+          <p class="muted">Create a student account and academic record together. Share the initial password directly with the student.</p>
+          <form id="student-form" class="form-grid">
+            <label>Full name<input name="name" autocomplete="off" maxlength="120" required></label>
+            <label>Email address<input name="email" type="email" autocomplete="off" maxlength="320" required></label>
+            <label>Registration number<input name="registrationNumber" autocomplete="off" maxlength="40" pattern="[A-Za-z0-9][A-Za-z0-9_\x2f\x2d]*" required></label>
+            <label>Program<select name="programId" required><option value="">Loading programs…</option></select></label>
+            <label>Initial password<input name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required></label>
+            <div class="form-action"><button type="submit">Create student</button></div>
+          </form>
+          <p class="notice" id="student-status" role="status" aria-live="polite"></p>
+          <div class="section-heading"><h2>Student accounts</h2><button type="button" class="secondary" id="refresh-students">Refresh</button></div>
+          <p class="muted">Latest 50 student records in your campus scope.</p>
+          <div class="table-scroll"><table><thead><tr><th>Name</th><th>Registration</th><th>Email</th><th>Program</th><th>Status</th></tr></thead><tbody id="student-rows"></tbody></table></div>
+          <p id="empty-students" class="muted" hidden>No students have been added yet.</p>
+        </section>
+        <section id="student-panel" hidden aria-labelledby="profile-heading">
+          <div class="section-heading"><h2 id="profile-heading">My student profile</h2><span class="badge">Student</span></div>
+          <p class="muted">Your account and academic registration details.</p>
+          <dl id="student-profile" class="profile-grid"></dl>
+        </section>
+      </section>
+    </main>
+  </body>
+</html>
