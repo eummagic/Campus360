@@ -93,7 +93,14 @@ export function createMongoAcademicManagementRepository({ db, client, ObjectId, 
             entity_type: name, entity_id: recordId, metadata: { ...data }, created_at: timestamp }, { session });
           return { record: view(kind, row) };
         }, { readConcern: { level: "snapshot" }, writeConcern: { w: "majority" }, readPreference: "primary", timeoutMS: 10_000, maxCommitTimeMS: 5000 });
-      } finally { await session.endSession(); }
+      } finally {
+        try { await session.endSession(); }
+        catch {
+          // Cleanup cannot change the acknowledged transaction result or mask
+          // its primary error. Never log raw driver errors or documents.
+          console.error("Academic management session cleanup failed.");
+        }
+      }
     },
   });
 }

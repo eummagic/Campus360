@@ -134,3 +134,56 @@ test("management factories reject missing repository/connection configuration", 
   const f = academicManagementFixture();
   assert.throws(() => createMongoAcademicManagementRepository({ ...f, client: {} }), TypeError);
 });
+
+
+test("session cleanup failure preserves acknowledged success and emits only a safe diagnostic", async (t) => {
+  const messages = []; t.mock.method(console, "error", (...args) => messages.push(args));
+  const { f, context, service } = setup(); f.controls.failEndSession = true;
+  const result = await service.create(context, "terms", term);
+  assert.equal(result.record.name, term.name);
+  assert.equal(f.state.academic_terms.length, 1); assert.equal(f.state.audit_events.length, 1);
+  assert.deepEqual(messages, [["Academic management session cleanup failed."]]);
+});
+
+test("session cleanup failure preserves the original repository error object", async (t) => {
+  t.mock.method(console, "error", () => {});
+  const { f, repository } = setup(); const primary = new Error("synthetic primary failure");
+  f.controls.failEndSession = true;
+  f.session.withTransaction = async () => { throw primary; };
+  await assert.rejects(repository.create(f.actorId, "terms", term), (error) => error === primary);
+});
+
+test("cleanup does not replace duplicate, authorization or audit-failure responses", async (t) => {
+  t.mock.method(console, "error", () => {});
+  const { f, context, service } = setup(); await service.create(context, "terms", term);
+  f.controls.failEndSession = true;
+  await assert.rejects(service.create(context, "terms", term), { status: 409 });
+  f.controls.revokeInTransaction = true;
+  await assert.rejects(service.create(context, "terms", { ...term, name: "Other" }), { status: 403 });
+  f.controls.revokeInTransaction = false; f.controls.failAudit = true;
+  await assert.rejects(service.create(context, "terms", { ...term, name: "Other" }), { status: 503 });
+  assert.equal(f.state.academic_terms.length, 1); assert.equal(f.state.audit_events.length, 1);
+});
+
+
+test("callback replay preserves generated resource/audit IDs and timestamps in the fake model", async () => {
+  const { f, context, service } = setup(); const transact = f.session.withTransaction.bind(f.session);
+  f.session.withTransaction = async (run, options) => {
+    await assert.rejects(transact(async () => { await run(); throw Error("synthetic transient failure"); }, options));
+    return transact(run, options);
+  };
+  await service.create(context, "terms", term);
+  const writes = f.calls.filter((call) => call.operation === "insertOne");
+  assert.equal(writes[0].row._id.toHexString(), writes[2].row._id.toHexString());
+  assert.equal(writes[1].row._id.toHexString(), writes[3].row._id.toHexString());
+  assert.equal(writes[0].row.created_at.getTime(), writes[2].row.created_at.getTime());
+  assert.equal(f.state.academic_terms.length, 1); assert.equal(f.state.audit_events.length, 1);
+});
+
+test("lost commit acknowledgement is not success or inferred rollback when cleanup also fails", async (t) => {
+  t.mock.method(console, "error", () => {});
+  const { f, context, service } = setup(); f.controls.failEndSession = true;
+  f.session.withTransaction = async (run) => { await run(); throw Error("synthetic lost commit reply"); };
+  await assert.rejects(service.create(context, "terms", term), { status: 503 });
+  assert.equal(f.state.academic_terms.length, 1); assert.equal(f.state.audit_events.length, 1);
+});
