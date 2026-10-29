@@ -10,6 +10,8 @@ import { createAcademicService } from "./academics/service.js";
 import { createDirectoryService } from "./students/directory-service.js";
 import { createProfileService } from "./profile/service.js";
 import { createMongoProfileRepository } from "./db/profile-repository.js";
+import { createMongoAcademicManagementRepository } from "./db/academic-management-repository.js";
+import { createAcademicManagementService } from "./academics/management-service.js";
 
 // Explicit opt-in startup. No dotenv, root configuration, implicit schema writes,
 // default database, demo identities, or automatic account provisioning.
@@ -39,7 +41,8 @@ try {
   const directoryService = createDirectoryService({ repository: studentRepository, adminScope });
   const profileService = createProfileService({ repository: createMongoProfileRepository(handle) });
   const academicService = createAcademicService({ repository: createMongoAcademicRepository({ ...handle, adminScope }), adminScope });
-  const app = createApp({ authService, studentService, academicService, directoryService, profileService, adminScope, authOrigin: origin, allowInsecureLoopback: insecure });
+  const managementService = createAcademicManagementService({ repository: createMongoAcademicManagementRepository({ ...handle, adminScope }), adminScope });
+  const app = createApp({ authService, studentService, academicService, managementService, directoryService, profileService, adminScope, authOrigin: origin, allowInsecureLoopback: insecure });
   server = await new Promise((resolve, reject) => {
     const listener = app.listen(Number(url.port || 80), url.hostname === "[::1]" ? "::1" : url.hostname, () => resolve(listener));
     listener.once("error", reject);

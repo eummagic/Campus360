@@ -3,9 +3,11 @@
 This report records results from the earlier `D:\COLLEGE\Campus360` checkout,
 not execution of `D:\COLLEGE\Campus360-reconciliation`. Historical counts,
 commands, browser observations, resource identities and cleanup results below
-apply only to that earlier test run. Dependencies and `.env.demo` have not been
-provisioned in the reconciled worktree; no tests or application execution have
-been performed there. Excluded local screenshots are not included in this copy.
+apply only to that earlier test run. At import, dependencies and `.env.demo` had
+not been provisioned and no tests or application execution had occurred in the
+reconciled worktree. Later Stage 3B database-free verification is recorded in
+ACADEMIC_MANAGEMENT.md; it does not verify a live database or browser session.
+Excluded local screenshots are not included in this copy.
 
 Subsequently, durable local demo setup completed in the earlier checkout, and
 the administrator academic overview (department and BCA program), student

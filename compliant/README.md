@@ -147,3 +147,11 @@ journey. `CAMPUS360_TEST_PREVIEW=true` keeps that suite's synthetic app availabl
 Listing is capped at the newest 50 students among the first 501 scoped student role
 records; full pagination and large-campus administration are deferred. Account creation
 does not enroll students in course offerings or generate attendance/academic history.
+
+## Academic term and subject management
+
+Stage 3B adds scoped administrator list/create forms through the academic overview.
+See [ACADEMIC_MANAGEMENT.md](ACADEMIC_MANAGEMENT.md) for fields, security, API and
+verification limits. Live use requires separately approved compatible schema;
+academic preparation remains incomplete and fail-closed. No provisioning occurs
+through these endpoints.

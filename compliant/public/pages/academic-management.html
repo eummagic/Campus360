@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Terms and subjects — Campus360</title><link rel="stylesheet" href="/css/app.css"><script type="module" src="/js/academic-management.js"></script></head>
+<body><main><section class="panel wide"><a class="subtle-link" href="/pages/academics.html">Back to academic overview</a>
+<p class="eyebrow">Campus360 · Administration</p><h1>Academic terms and subjects</h1>
+<p class="muted">Administrator access requires the configured scope. Creates include an audit event. Existing schema must be verified separately; this page never provisions collections. Names and codes use case-sensitive uniqueness.</p>
+<section aria-labelledby="terms-heading"><h2 id="terms-heading">Academic terms</h2><p id="terms-status" role="status" aria-live="polite">Loading terms…</p>
+<div class="table-scroll"><table><thead><tr><th scope="col">Name</th><th scope="col">Starts</th><th scope="col">Ends</th><th scope="col">Status</th></tr></thead><tbody id="terms-rows"></tbody></table></div>
+<p><button type="button" id="terms-prev" disabled>Previous terms</button> <button type="button" id="terms-next" disabled>Next terms</button></p>
+<form id="terms-form"><fieldset disabled><legend>Create a term</legend>
+<label>Name <input name="name" required maxlength="80"></label>
+<label>Starts on (optional) <input name="starts_on" type="date"></label><label>Ends on (optional) <input name="ends_on" type="date"></label>
+<label>Status <select name="status"><option value="planned">Planned</option><option value="active">Active</option><option value="closed">Closed</option></select></label>
+<button>Create term</button></fieldset></form><p id="terms-result" role="status" aria-live="polite"></p></section>
+<section aria-labelledby="subjects-heading"><h2 id="subjects-heading">Subjects</h2><p id="subjects-status" role="status" aria-live="polite">Loading subjects…</p>
+<div class="table-scroll"><table><thead><tr><th scope="col">Code</th><th scope="col">Name</th><th scope="col">Program</th><th scope="col">Credits</th><th scope="col">Status</th></tr></thead><tbody id="subjects-rows"></tbody></table></div>
+<p><button type="button" id="subjects-prev" disabled>Previous subjects</button> <button type="button" id="subjects-next" disabled>Next subjects</button></p>
+<form id="subjects-form"><fieldset disabled><legend>Create a subject</legend>
+<label>Active program <select name="program_id" required><option value="">Select a program</option></select></label>
+<label>Code <input name="code" required maxlength="32"></label><label>Name <input name="name" required maxlength="200"></label>
+<label>Credits (optional, 0–60) <input name="credits" type="number" min="0" max="60" step="1"></label>
+<label>Status <select name="status"><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
+<button>Create subject</button></fieldset></form><p id="subjects-result" role="status" aria-live="polite"></p></section>
+</section></main></body></html>
